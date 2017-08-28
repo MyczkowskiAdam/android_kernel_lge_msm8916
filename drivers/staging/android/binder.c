@@ -4134,7 +4134,6 @@ static int binder_proc_show(struct seq_file *m, void *unused)
 {
 	struct binder_proc *itr;
 	int pid = (unsigned long)m->private;
-	struct hlist_node *pos;
 	int do_lock = !binder_debug_no_lock;
 
 	if (do_lock)
@@ -4224,7 +4223,7 @@ static int __init binder_init(void)
 	int ret;
 	char *device_name, *device_names;
 	struct binder_device *device;
-	struct hlist_node *node, *tmp;
+	struct hlist_node *tmp;
 
 	binder_deferred_workqueue = create_singlethread_workqueue("binder");
 	if (!binder_deferred_workqueue)
@@ -4283,7 +4282,7 @@ static int __init binder_init(void)
 	return ret;
 
 err_init_binder_device_failed:
-	hlist_for_each_entry_safe(device, node, tmp, &binder_devices, hlist) {
+	hlist_for_each_entry_safe(device, tmp, &binder_devices, hlist) {
 		misc_deregister(&device->miscdev);
 		hlist_del(&device->hlist);
 		kfree(device);
