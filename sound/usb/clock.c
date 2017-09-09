@@ -360,7 +360,7 @@ static int set_sample_rate_v2(struct snd_usb_audio *chip, int iface,
 		return 0;
 
 	cs_desc = snd_usb_find_clock_source(chip->ctrl_intf, clock);
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	if (cs_desc == NULL)
 		return 0;
 #endif

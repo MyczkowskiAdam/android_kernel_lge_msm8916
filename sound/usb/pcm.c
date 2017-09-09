@@ -700,7 +700,7 @@ static int snd_usb_pcm_prepare(struct snd_pcm_substream *substream)
 		goto unlock;
 
 	iface = usb_ifnum_to_if(subs->dev, subs->cur_audiofmt->iface);
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	if (WARN_ON(!iface))
 		return -EINVAL;
 #endif
