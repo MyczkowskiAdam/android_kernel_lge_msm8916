@@ -181,7 +181,7 @@ static void diag_update_pid_and_serial_num(struct diag_context *ctxt)
 	if (!ctxt->update_pid_and_serial_num)
 		return;
 
-#ifndef CONFIG_LGE_USB_G_ANDROID
+#ifndef CONFIG_USB_G_LGE_ANDROID
 	/*
 	 * update pid and serail number to dload only if diag
 	 * interface is zeroth interface.

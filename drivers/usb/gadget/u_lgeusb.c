@@ -14,9 +14,9 @@
  */
 
 /*
- * DGMS MC-C05702-7 : Apply Autorun
- * CONFIG_LGE_USB_G_AUTORUN
- * CONFIG_LGE_USB_G_AUTORUN_LGE
+                                   
+                                   
+                                       
  */
 
 #include <linux/init.h>
@@ -25,27 +25,17 @@
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/platform_device.h>
-//#include <mach/board.h>
+#include <mach/board.h>
 #ifdef CONFIG_MACH_LGE
-#ifdef CONFIG_64BIT
-#include <soc/qcom/lge/board_lge.h>
-#else
 #include <mach/board_lge.h>
 #endif
-#endif
-
-#ifdef CONFIG_64BIT
-#include <soc/qcom/lge/lge_android_usb.h>
-#else
 #include <linux/platform_data/lge_android_usb.h>
-#endif//CONFIG_64BIT
-#include "u_lgeusb.h"
 
-#include <linux/power_supply.h>
+#include "u_lgeusb.h"
 
 static struct mutex lgeusb_lock;
 
-#ifdef CONFIG_LGE_USB_G_AUTORUN
+#ifdef CONFIG_USB_G_LGE_ANDROID_AUTORUN
 static u16 user_mode;
 #endif
 
@@ -61,9 +51,9 @@ struct lgeusb_dev {
 	u16 vendor_id;
 	u16 factory_pid;
 	u8  iSerialNumber;
-	const char *product;
-	const char *manufacturer;
-	const char *fcomposition;
+	char *product;
+	char *manufacturer;
+	char *fcomposition;
 	enum lgeusb_mode current_mode;
 
 	int (*get_serial_number)(char *serial);
@@ -75,45 +65,11 @@ static char swver_string[32];
 static char subver_string[32];
 static char phoneid_string[32];
 
-#ifdef CONFIG_LGE_USB_G_MULTIPLE_CONFIGURATION
+#ifdef CONFIG_USB_G_LGE_MULTIPLE_CONFIGURATION
 static bool is_mac_os;
 #endif
 
 static struct lgeusb_dev *_lgeusb_dev;
-
-#if defined(CONFIG_LGE_USB_TYPE_A)
-int uevnet_is_send = 0;
-
-int get_battery_capacity(void) {
-
-	union power_supply_propval ret = {0,};
-	struct power_supply *fuelgauge = power_supply_get_by_name("fuelgauge");
-	if (fuelgauge) {
-		fuelgauge->get_property(fuelgauge, POWER_SUPPLY_PROP_CAPACITY, &ret);
-	} else {
-		pr_err("fuelgauge is null\n");
-		return -1;
-	}
-	return ret.intval;
-}
-
-int send_usb_storage_limited(void) {
-	struct lgeusb_dev *dev = _lgeusb_dev;
-	int soc;
-	char *capacity[2]= { "BATTERY=UNDER_15_PERCENT", NULL };
-
-	soc = get_battery_capacity();
-	if ((soc >= 0) && (soc <= 15)) {
-		kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE, capacity);
-		uevnet_is_send = 1;
-		pr_info("%s: storage limited uevent sent\n", __func__);
-		return 1;
-	} else {
-		pr_info("%s: at least a valid battery status ...\n", __func__);
-		return 0;
-	}
-}
-#endif
 
 /* Belows are borrowed from android gadget's ATTR macros ;) */
 #define LGE_ID_ATTR(field, format_string)               \
@@ -134,9 +90,10 @@ lgeusb_ ## field ## _store(struct device *dev, struct device_attribute *attr, \
 		usbdev->field = value;              \
 		return size;                        \
 	}                               \
-	return -EINVAL;                          \
+	return -1;                          \
 }                                   \
-static DEVICE_ATTR(field, S_IRUGO | S_IWUSR, lgeusb_ ## field ## _show, lgeusb_ ## field ## _store);
+static DEVICE_ATTR(field, S_IRUGO | S_IWUSR, lgeusb_ ## field ## _show, \
+		lgeusb_ ## field ## _store);
 
 #define LGE_RDONLY_STRING_ATTR(field, string)               \
 static ssize_t                              \
@@ -149,7 +106,7 @@ lgeusb_ ## field ## _show(struct device *dev, struct device_attribute *attr,   \
 static DEVICE_ATTR(field, S_IRUGO, lgeusb_ ## field ## _show, NULL);
 
 #define LGE_STRING_ATTR(field, buffer)               \
-static ssize_t                              \
+	static ssize_t                              \
 field ## _show(struct device *dev, struct device_attribute *attr,   \
 		char *buf)                      \
 {                                   \
@@ -161,10 +118,9 @@ field ## _store(struct device *dev, struct device_attribute *attr,  \
 {                                   \
 	if (size >= sizeof(buffer)) \
 		return -EINVAL;         \
-	if (sscanf(buf, "%31s", buffer) == 1) {            \
+	if (sscanf(buf, "%31s", buffer) == 1)             \
 		return size;                        \
-	}                               \
-	return -ENODEV;                          \
+	return -1;                          \
 }                                   \
 static DEVICE_ATTR(field, S_IRUGO | S_IWUSR, field ## _show, field ## _store);
 
@@ -215,9 +171,9 @@ static ssize_t lgeusb_mode_show(struct device *dev,
 }
 static DEVICE_ATTR(lge_usb_mode, S_IRUGO, lgeusb_mode_show, NULL);
 
-#ifdef CONFIG_LGE_USB_G_AUTORUN
+#ifdef CONFIG_USB_G_LGE_ANDROID_AUTORUN
 /* To set/get USB user mode to/from user space for autorun */
-static ssize_t autorun_user_mode_show(struct device *dev,
+static int autorun_user_mode_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	int ret;
@@ -226,13 +182,13 @@ static ssize_t autorun_user_mode_show(struct device *dev,
 	return ret;
 }
 
-static ssize_t autorun_user_mode_store(struct device *dev,
+static int autorun_user_mode_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
 	int ret = 0;
 	unsigned long tmp;
 
-	ret = strict_strtoul(buf, 10, &tmp);
+	ret = kstrtoul(buf, 10, &tmp);
 	if (ret)
 		return ret;
 
@@ -244,8 +200,8 @@ static ssize_t autorun_user_mode_store(struct device *dev,
 
 	return ret;
 }
-static DEVICE_ATTR(autorun_user_mode,
-	S_IRUGO | S_IWUSR, autorun_user_mode_show, autorun_user_mode_store);
+static DEVICE_ATTR(autorun_user_mode, S_IRUGO | S_IWUSR,
+		autorun_user_mode_show, autorun_user_mode_store);
 
 int lgeusb_get_autorun_user_mode(void)
 {
@@ -265,7 +221,7 @@ static struct device_attribute *lge_android_usb_attributes[] = {
 	&dev_attr_sw_version,
 	&dev_attr_sub_version,
 	&dev_attr_phone_id,
-#ifdef CONFIG_LGE_USB_G_AUTORUN
+#ifdef CONFIG_USB_G_LGE_ANDROID_AUTORUN
 	&dev_attr_autorun_user_mode,
 #endif
 	NULL
@@ -279,17 +235,15 @@ static int lgeusb_create_device_file(struct lgeusb_dev *dev)
 
 	while ((attr = *attrs++)) {
 		ret = device_create_file(dev->dev, attr);
-		if (ret) {
-			pr_err("usb: lgeusb: error on creating device "
-					"file %s\n", attr->attr.name);
-			return ret;
-		}
+		if (ret)
+			pr_err("usb: lgeusb: error on creating device file %s\n",
+					attr->attr.name);
 	}
 
 	return 0;
 }
 
-int lgeusb_get_factory_cable(void)
+int lgeusb_get_pif_cable(void)
 {
 	struct lgeusb_dev *usbdev = _lgeusb_dev;
 	if (usbdev->get_factory_cable)
@@ -358,7 +312,6 @@ int lgeusb_get_model_name(char *model)
 {
 	if (!model || strlen(model) > 15)
 		return -EINVAL;
-
 	strlcpy(model, model_string, strlen(model) - 1);
 	pr_info("lgeusb: model name %s\n", model);
 	return 0;
@@ -368,7 +321,6 @@ int lgeusb_get_phone_id(char *phoneid)
 {
 	if (!phoneid || strlen(phoneid) > 15)
 		return -EINVAL;
-
 	strlcpy(phoneid, phoneid_string, strlen(phoneid) - 1);
 	pr_info("lgeusb: phoneid %s\n", phoneid);
 	return 0;
@@ -378,7 +330,6 @@ int lgeusb_get_sw_ver(char *sw_ver)
 {
 	if (!sw_ver || strlen(sw_ver) > 15)
 		return -EINVAL;
-
 	strlcpy(sw_ver, swver_string, strlen(sw_ver) - 1);
 	pr_info("lgeusb: sw version %s\n", sw_ver);
 	return 0;
@@ -388,7 +339,6 @@ int lgeusb_get_sub_ver(char *sub_ver)
 {
 	if (!sub_ver || strlen(sub_ver) > 15)
 		return -EINVAL;
-
 	strlcpy(sub_ver, subver_string, strlen(sub_ver) - 1);
 	pr_info("lgeusb: sw sub version %s\n", sub_ver);
 	return 0;
@@ -400,7 +350,7 @@ static struct platform_driver lge_android_usb_platform_driver = {
 	},
 };
 
-#ifdef CONFIG_LGE_USB_G_MULTIPLE_CONFIGURATION
+#ifdef CONFIG_USB_G_LGE_MULTIPLE_CONFIGURATION
 void lgeusb_set_host_os(u16 w_length)
 {
 	switch (w_length) {
@@ -421,7 +371,7 @@ bool lgeusb_get_host_os(void)
 }
 #endif
 
-static int lgeusb_probe(struct platform_device *pdev)
+static int __init lgeusb_probe(struct platform_device *pdev)
 {
 	struct lge_android_usb_platform_data *pdata = pdev->dev.platform_data;
 	struct lgeusb_dev *usbdev = _lgeusb_dev;
@@ -454,11 +404,86 @@ static int lgeusb_probe(struct platform_device *pdev)
 	}
 
 	usbdev->current_mode = LGEUSB_DEFAULT_MODE;
-
 	lgeusb_create_device_file(usbdev);
 
 	return 0;
 }
+
+#ifdef CONFIG_LGE_DIAG_USB_ACCESS_LOCK
+static int user_diag_enable = 0;
+
+#define DIAG_ENABLE 1
+int get_diag_enable(void)
+{
+	if (lge_get_factory_boot())
+		user_diag_enable = DIAG_ENABLE;
+
+	return user_diag_enable;
+}
+EXPORT_SYMBOL(get_diag_enable);
+
+static ssize_t read_diag_enable(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	return sprintf(buf, "%d", user_diag_enable);
+}
+
+static ssize_t write_diag_enable(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t size)
+{
+	unsigned char string[2];
+
+	sscanf(buf, "%s", string);
+
+	if (!strncmp(string, "0", 1))
+		user_diag_enable = 0;
+	else
+		user_diag_enable = 1;
+
+	printk("[%s] diag_enable: %d\n",__func__, user_diag_enable);
+
+	return size;
+}
+static DEVICE_ATTR(diag_enable, S_IRUGO | S_IWUSR, read_diag_enable, write_diag_enable);
+
+int lg_diag_create_file(struct platform_device *pdev)
+{
+	int ret;
+
+	ret = device_create_file(&pdev->dev, &dev_attr_diag_enable);
+	if (ret) {
+		device_remove_file(&pdev->dev, &dev_attr_diag_enable);
+		return ret;
+	}
+	return ret;
+}
+
+int lg_diag_remove_file(struct platform_device *pdev)
+{
+	device_remove_file(&pdev->dev, &dev_attr_diag_enable);
+	return 0;
+}
+
+static int lg_diag_cmd_probe(struct platform_device *pdev)
+{
+	return lg_diag_create_file(pdev);
+}
+
+static int lg_diag_cmd_remove(struct platform_device *pdev)
+{
+	lg_diag_remove_file(pdev);
+	return 0;
+}
+
+static struct platform_driver lg_diag_cmd_driver = {
+	.probe          = lg_diag_cmd_probe,
+	.remove         = lg_diag_cmd_remove,
+	.driver 	= {
+		.name = "lg_diag_cmd",
+	},
+};
+#endif
 
 static int __init lgeusb_init(void)
 {
@@ -473,11 +498,15 @@ static int __init lgeusb_init(void)
 
 	_lgeusb_dev = dev;
 
-	/* set default vid, pid and factory id. vid and pid will be overrided. */
+	/* set default vid, pid and factory id.
+	 * vid and pid will be overrided.
+	 */
 	dev->vendor_id = LGE_VENDOR_ID;
 	dev->factory_pid = LGE_FACTORY_PID;
-	dev->get_factory_cable = lge_get_factory_boot;
 
+#ifdef CONFIG_LGE_DIAG_USB_ACCESS_LOCK
+	platform_driver_register(&lg_diag_cmd_driver);
+#endif
 	return platform_driver_probe(&lge_android_usb_platform_driver,
 			lgeusb_probe);
 }

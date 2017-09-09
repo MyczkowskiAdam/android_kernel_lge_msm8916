@@ -65,7 +65,7 @@ struct gmidi_in_port {
 	uint8_t data[2];
 };
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 struct midi_alsa_config {
 	int	card;
 	int	device;
@@ -92,7 +92,7 @@ struct f_midi {
 	unsigned int buflen, qlen;
 };
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 static struct f_midi _midi;
 #endif
 
@@ -108,7 +108,7 @@ DECLARE_USB_MIDI_OUT_JACK_DESCRIPTOR(1);
 DECLARE_USB_MS_ENDPOINT_DESCRIPTOR(16);
 
 /* B.3.1  Standard AC Interface Descriptor */
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 static struct usb_interface_descriptor midi_ac_interface_desc /* __initdata */ = {
 #else
 static struct usb_interface_descriptor ac_interface_desc __initdata = {
@@ -123,7 +123,7 @@ static struct usb_interface_descriptor ac_interface_desc __initdata = {
 };
 
 /* B.3.2  Class-Specific AC Interface Descriptor */
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 static struct uac1_ac_header_descriptor_1 midi_ac_header_desc /* __initdata */ = {
 #else
 static struct uac1_ac_header_descriptor_1 ac_header_desc __initdata = {
@@ -138,7 +138,7 @@ static struct uac1_ac_header_descriptor_1 ac_header_desc __initdata = {
 };
 
 /* B.4.1  Standard MS Interface Descriptor */
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 static struct usb_interface_descriptor ms_interface_desc /* __initdata */ = {
 #else
 static struct usb_interface_descriptor ms_interface_desc __initdata = {
@@ -153,7 +153,7 @@ static struct usb_interface_descriptor ms_interface_desc __initdata = {
 };
 
 /* B.4.2  Class-Specific MS Interface Descriptor */
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 static struct usb_ms_header_descriptor ms_header_desc /* __initdata */ = {
 #else
 static struct usb_ms_header_descriptor ms_header_desc __initdata = {
@@ -218,7 +218,7 @@ static struct usb_gadget_strings *midi_strings[] = {
 	NULL,
 };
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 static struct usb_request *midi_alloc_ep_req(struct usb_ep *ep, unsigned length)
 #else
 static struct usb_request *alloc_ep_req(struct usb_ep *ep, unsigned length)
@@ -228,7 +228,7 @@ static struct usb_request *alloc_ep_req(struct usb_ep *ep, unsigned length)
 
 	req = usb_ep_alloc_request(ep, GFP_ATOMIC);
 	if (req) {
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 		if (length % ep->desc->wMaxPacketSize) {
 			length = ep->desc->wMaxPacketSize;
 		}
@@ -243,7 +243,7 @@ static struct usb_request *alloc_ep_req(struct usb_ep *ep, unsigned length)
 	return req;
 }
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 static void midi_free_ep_req(struct usb_ep *ep, struct usb_request *req)
 #else
 static void free_ep_req(struct usb_ep *ep, struct usb_request *req)
@@ -318,7 +318,7 @@ f_midi_complete(struct usb_ep *ep, struct usb_request *req)
 		if (ep == midi->out_ep)
 			f_midi_handle_out_data(ep, req);
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 		midi_free_ep_req(ep, req);
 #else
 		free_ep_req(ep, req);
@@ -409,7 +409,7 @@ static int f_midi_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 	/* allocate a bunch of read buffers and queue them all at once. */
 	for (i = 0; i < midi->qlen && err == 0; i++) {
 		struct usb_request *req =
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 			midi_alloc_ep_req(midi->out_ep, midi->buflen);
 #else
 			alloc_ep_req(midi->out_ep, midi->buflen);
@@ -448,7 +448,7 @@ static void f_midi_unbind(struct usb_configuration *c, struct usb_function *f)
 	struct usb_composite_dev *cdev = f->config->cdev;
 	struct f_midi *midi = func_to_midi(f);
 	struct snd_card *card;
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	int i;
 #endif
 
@@ -460,7 +460,7 @@ static void f_midi_unbind(struct usb_configuration *c, struct usb_function *f)
 	card = midi->card;
 	midi->card = NULL;
 	if (card)
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 		snd_card_free_when_closed(card);
 #else
 		snd_card_free(card);
@@ -469,7 +469,7 @@ static void f_midi_unbind(struct usb_configuration *c, struct usb_function *f)
 	kfree(midi->id);
 	midi->id = NULL;
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	if (midi->out_ep)
 		midi->out_ep->driver_data = NULL;
 	if (midi->in_ep)
@@ -480,7 +480,7 @@ static void f_midi_unbind(struct usb_configuration *c, struct usb_function *f)
 	}
 #endif
 	usb_free_all_descriptors(f);
-#ifndef CONFIG_LGE_USB_G_ANDROID
+#ifndef CONFIG_USB_G_LGE_ANDROID
 	kfree(midi);
 #endif
 }
@@ -613,7 +613,7 @@ static void f_midi_transmit(struct f_midi *midi, struct usb_request *req)
 		return;
 
 	if (!req)
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 		req = midi_alloc_ep_req(ep, midi->buflen);
 #else
 		req = alloc_ep_req(ep, midi->buflen);
@@ -646,7 +646,7 @@ static void f_midi_transmit(struct f_midi *midi, struct usb_request *req)
 	if (req->length > 0)
 		usb_ep_queue(ep, req, GFP_ATOMIC);
 	else
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 		midi_free_ep_req(ep, req);
 #else
 		free_ep_req(ep, req);
@@ -808,7 +808,7 @@ fail:
 
 /* MIDI function driver setup/binding */
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 static int /* __init */
 f_midi_bind(struct usb_configuration *c, struct usb_function *f)
 #else
@@ -837,7 +837,7 @@ f_midi_bind(struct usb_configuration *c, struct usb_function *f)
 	status = usb_interface_id(c, f);
 	if (status < 0)
 		goto fail;
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	midi_ac_interface_desc.bInterfaceNumber = status;
 #else
 	ac_interface_desc.bInterfaceNumber = status;
@@ -847,7 +847,7 @@ f_midi_bind(struct usb_configuration *c, struct usb_function *f)
 	if (status < 0)
 		goto fail;
 	ms_interface_desc.bInterfaceNumber = status;
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	midi_ac_header_desc.baInterfaceNr[0] = status;
 #else
 	ac_header_desc.baInterfaceNr[0] = status;
@@ -881,7 +881,7 @@ f_midi_bind(struct usb_configuration *c, struct usb_function *f)
 	 */
 
 	/* add the headers - these are always the same */
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	midi_function[i++] = (struct usb_descriptor_header *) &midi_ac_interface_desc;
 	midi_function[i++] = (struct usb_descriptor_header *) &midi_ac_header_desc;
 #else
@@ -1016,7 +1016,7 @@ fail:
  *
  * Returns zero on success, else negative errno.
  */
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 int /* __init */ f_midi_bind_config(struct usb_configuration *c,
 			      int index, char *id,
 			      unsigned int in_ports,
@@ -1037,7 +1037,7 @@ int __init f_midi_bind_config(struct usb_configuration *c,
 	struct f_midi *midi;
 	int status, i;
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	if (config) {
 		config->card = -1;
 		config->device = -1;
@@ -1048,7 +1048,7 @@ int __init f_midi_bind_config(struct usb_configuration *c,
 	if (in_ports > MAX_PORTS || out_ports > MAX_PORTS)
 		return -EINVAL;
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	midi = &_midi;
 #else
 	/* allocate and initialize one new instance */
@@ -1076,7 +1076,7 @@ int __init f_midi_bind_config(struct usb_configuration *c,
 	tasklet_init(&midi->tasklet, f_midi_in_tasklet, (unsigned long) midi);
 
 	/* set up ALSA midi devices */
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	midi->id = kstrdup(id, GFP_KERNEL);
 	midi->index = index;
 	midi->buflen = buflen;
@@ -1095,7 +1095,7 @@ int __init f_midi_bind_config(struct usb_configuration *c,
 	midi->func.set_alt     = f_midi_set_alt;
 	midi->func.disable     = f_midi_disable;
 
-#ifndef CONFIG_LGE_USB_G_ANDROID
+#ifndef CONFIG_USB_G_LGE_ANDROID
 	midi->id = kstrdup(id, GFP_KERNEL);
 	midi->index = index;
 	midi->buflen = buflen;
@@ -1107,7 +1107,7 @@ int __init f_midi_bind_config(struct usb_configuration *c,
 		goto setup_fail;
 
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	if (config) {
 		config->card = midi->rmidi->card->number;
 		config->device = midi->rmidi->device;
@@ -1119,7 +1119,7 @@ int __init f_midi_bind_config(struct usb_configuration *c,
 setup_fail:
 	for (--i; i >= 0; i--)
 		kfree(midi->in_port[i]);
-#ifndef CONFIG_LGE_USB_G_ANDROID
+#ifndef CONFIG_USB_G_LGE_ANDROID
 	kfree(midi);
 fail:
 #endif

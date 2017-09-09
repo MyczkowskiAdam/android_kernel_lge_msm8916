@@ -39,7 +39,7 @@
 #include <linux/debugfs.h>
 #endif
 
-#if defined CONFIG_DEBUG_FS && defined CONFIG_LGE_USB_G_ANDROID
+#if defined CONFIG_DEBUG_FS && defined CONFIG_USB_G_LGE_ANDROID
 #define CONFIG_LGE_USB_G_MTP_PROFILING
 #endif
 
@@ -74,7 +74,7 @@
 #define MTP_RESPONSE_OK             0x2001
 #define MTP_RESPONSE_DEVICE_BUSY    0x2019
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 #define LG_MTP_RX_REQ_LEN	262144
 unsigned int mtp_rx_req_len = LG_MTP_RX_REQ_LEN;
 #else
@@ -85,7 +85,7 @@ module_param(mtp_rx_req_len, uint, S_IRUGO | S_IWUSR);
 unsigned int mtp_tx_req_len = MTP_BULK_BUFFER_SIZE;
 module_param(mtp_tx_req_len, uint, S_IRUGO | S_IWUSR);
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 unsigned int mtp_tx_reqs = 32;
 #else
 unsigned int mtp_tx_reqs = MTP_TX_REQ_MAX;
@@ -625,7 +625,7 @@ static struct usb_request *mtp_request_new(struct usb_ep *ep, int buffer_size)
 		return NULL;
 
 	/* now allocate buffers for the requests */
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	req->buf = kmalloc(buffer_size, GFP_KERNEL | __GFP_NOWARN);
 #else
 	req->buf = kmalloc(buffer_size, GFP_KERNEL);
@@ -944,13 +944,13 @@ retry_tx_alloc:
 	for (i = 0; i < mtp_tx_reqs; i++) {
 		req = mtp_request_new(dev->ep_in, mtp_tx_req_len);
 		if (!req) {
-#ifndef CONFIG_LGE_USB_G_ANDROID
+#ifndef CONFIG_USB_G_LGE_ANDROID
 			if (mtp_tx_req_len <= MTP_BULK_BUFFER_SIZE)
 				goto fail;
 #endif
 			while ((req = mtp_req_get(dev, &dev->tx_idle)))
 				mtp_request_free(req, dev->ep_in);
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 			if (mtp_tx_req_len <= MTP_BULK_BUFFER_SIZE)
 				goto tx_fail;
 #endif
@@ -975,18 +975,18 @@ retry_rx_alloc:
 	for (i = 0; i < RX_REQ_MAX; i++) {
 		req = mtp_request_new(dev->ep_out, mtp_rx_req_len);
 		if (!req) {
-#ifndef CONFIG_LGE_USB_G_ANDROID
+#ifndef CONFIG_USB_G_LGE_ANDROID
 			if (mtp_rx_req_len <= MTP_BULK_BUFFER_SIZE)
 				goto fail;
 #endif
 			for (--i; i >= 0; i--)
 				mtp_request_free(dev->rx_req[i], dev->ep_out);
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 			if (mtp_rx_req_len <= MTP_BULK_BUFFER_SIZE)
 				goto rx_fail;
 #endif
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 			mtp_rx_req_len /= 2;
 			DBG(cdev, "retry rx_req alloc: %d\n", mtp_rx_req_len);
 #else
@@ -999,7 +999,7 @@ retry_rx_alloc:
 	}
 	for (i = 0; i < INTR_REQ_MAX; i++) {
 		req = mtp_request_new(dev->ep_intr, INTR_BUFFER_SIZE);
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 		if (!req) {
 			while ((req = mtp_req_get(dev, &dev->intr_idle)))
 				mtp_request_free(req, dev->ep_intr);
@@ -1015,7 +1015,7 @@ retry_rx_alloc:
 
 	return 0;
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 intr_fail:
 	for (i = 0; i < RX_REQ_MAX; i++)
 		mtp_request_free(dev->rx_req[i], dev->ep_out);
@@ -1044,7 +1044,7 @@ static ssize_t mtp_read(struct file *fp, char __user *buf,
 
 	DBG(cdev, "mtp_read(%zu)\n", count);
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	if (!dev->ep_out)
 		return -EINVAL;
 #endif
@@ -1388,7 +1388,7 @@ static void receive_file_work(struct work_struct *data)
 	memset(&dev->perf.wtime, 0, sizeof(dev->perf.wtime));
 	memset(&dev->perf.receive_time, 0, sizeof(dev->perf.receive_time));
 #endif
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	if (dev->ep_out && !IS_ALIGNED(count, dev->ep_out->maxpacket))
 #else
 	if (!IS_ALIGNED(count, dev->ep_out->maxpacket))
@@ -1797,7 +1797,7 @@ static int mtp_ctrlrequest(struct usb_composite_dev *cdev,
 		DBG(cdev, "class request: %d index: %d value: %d length: %d\n",
 			ctrl->bRequest, w_index, w_value, w_length);
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 		if (ctrl->bRequest == MTP_REQ_CANCEL &&
 			(w_index == 0 ||
 			 w_index == mtp_interface_desc.bInterfaceNumber) &&
@@ -1821,7 +1821,7 @@ static int mtp_ctrlrequest(struct usb_composite_dev *cdev,
 			 * the contents.
 			 */
 			value = w_length;
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 		} else if (ctrl->bRequest == MTP_REQ_GET_DEVICE_STATUS &&
 			(w_index == 0 ||
 			 w_index == mtp_interface_desc.bInterfaceNumber) &&
@@ -1884,7 +1884,7 @@ static int multi_mtp_bind(struct mtp_dev *dev,
 	if (id < 0)
 		return id;
 	mtp_interface_desc2.bInterfaceNumber = id;
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	/* for ptp & MS desc */
 	ptp_interface_desc2.bInterfaceNumber = id;
 	if (dev->first_mtp_binded == false)
@@ -1949,7 +1949,7 @@ mtp_function_bind(struct usb_configuration *c, struct usb_function *f)
 	if (id < 0)
 		return id;
 	mtp_interface_desc.bInterfaceNumber = id;
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	/* for ptp & MS desc */
 	ptp_interface_desc.bInterfaceNumber = id;
 	mtp_ext_config_desc.function.bFirstInterfaceNumber = id;
@@ -2026,7 +2026,7 @@ mtp_function_unbind(struct usb_configuration *c, struct usb_function *f)
 	dev->allocated_func = 0;
 	dev->first_mtp_binded = false;
 #endif
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	mtp_rx_req_len = LG_MTP_RX_REQ_LEN;
 #endif
 }
@@ -2067,7 +2067,7 @@ static int mtp_function_set_alt(struct usb_function *f,
 		usb_ep_disable(dev->ep_in);
 		return ret;
 	}
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	if (!lge_get_laf_mode())
 #endif
 	ret = usb_ep_enable(dev->ep_out);

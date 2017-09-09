@@ -14,9 +14,9 @@
  */
 
 /*
- * DGMS MC-C05702-7 : Apply Autorun
- * CONFIG_LGE_USB_G_AUTORUN
- * CONFIG_LGE_USB_G_AUTORUN_LGE
+                                   
+                                   
+                                       
  */
 
 #ifndef __U_LGEUSB_H__
@@ -28,20 +28,20 @@ enum lgeusb_mode {
 	LGEUSB_DEFAULT_MODE,
 };
 
-#ifdef CONFIG_LGE_USB_G_AUTORUN
+#ifdef CONFIG_USB_G_LGE_ANDROID_AUTORUN
 int lgeusb_get_autorun_user_mode(void);
 int lgeusb_get_model_name(char *);
 int lgeusb_get_phone_id(char *);
 int lgeusb_get_sw_ver(char *);
 int lgeusb_get_sub_ver(char *);
+#endif
 
-#ifdef CONFIG_LGE_USB_G_MULTIPLE_CONFIGURATION
+#ifdef CONFIG_USB_G_LGE_MULTIPLE_CONFIGURATION
 #define MAC_OS_TYPE	0x02
 #define WIN_LINUX_TYPE	0xFF
 
 void lgeusb_set_host_os(u16);
 bool lgeusb_get_host_os(void);
 #endif
-#endif
 
-#endif /* __U_LGEUSB_H__ */
+#endif /*                */

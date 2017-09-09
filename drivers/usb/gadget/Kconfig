@@ -1119,72 +1119,57 @@ config RMNET_SDIO_SMD_DATA_CHANNEL
        help
 	  Data SMD channel for transferring network data
 
-config LGE_USB_G_ANDROID
-	boolean "LGE Android Gadget for LG PC host Driver"
+config USB_G_LGE_ANDROID
+	boolean "Android Gadget for LGE United Driver"
 	depends on USB_G_ANDROID
-        select SND_RAWMIDI
-	help
-	  Customized Android Gadget USB framework for
-	  LGE United PC host USB driver.
-
 	default n
+	help
+		 Provides android gadget codes for LGE United Driver.
 
-config LGE_USB_G_ANDROID_PFSC
+config LAF_G_DRIVER
+	boolean "LAF USB Gadget Driver"
+	depends on USB_G_LGE_ANDROID
+	default n
+	help
+		Provides LAF USB Gadget Driver for Download"
+
+config USB_G_LGE_ANDROID_PFSC
 	boolean "Force full speed support if pif is connected in LGE Android"
-	depends on LGE_USB_G_ANDROID
+	depends on USB_G_LGE_ANDROID
 	help
-	   This feature is that USB set forcely full speed if pif cable is
-	   connected. It is only for PIF cable, not normal USB cable.
+	This feature is that USB set forcely full speed if pif cable is
+	connected. It is only for PIF cable, not normal USB cable.
 
-	   Say y if this must be needed.
+	Say y if this must be needed.
 
 	default n
 
-config LGE_USB_G_ANDROID_STORAGE_NAME
-	string "USB mass & cdrom storage device name for LGE Android"
-	depends on LGE_USB_G_AUTORUN
-	default "Android Platform"
-	help
-	   Name for USB mass & cdrom device name used in LGE Andoird Autorun.
-
-	   NOTE: default name is "Android Platform", need to change your
-	   board config to use other device name(e.g. in VZW devices)
-
-config LGE_USB_G_AUTORUN
+config USB_G_LGE_ANDROID_AUTORUN
 	boolean "Common autorun support in LGE Android"
-	depends on LGE_USB_G_ANDROID
+	depends on USB_G_LGE_ANDROID
 	help
 	  Autorun is LGE specific feature which is able to install PC host
 	  USB driver automatically on Autorun-enabled OS(Ex. Windows). For this,
 	  virtual-cdrom device is provided on LGE Android powered device.
+	  (DGMS: MC-C05702-7)
 
 	default n
 
-config LGE_USB_G_AUTORUN_VZW
-	boolean "VZW specific autorun support in LGE Android"
-	depends on LGE_USB_G_AUTORUN
-	help
-	  It supports VZW specific autorun feature. note that this
-	  must be used in VZW devices.
-
-	  Say y if this must be needed.
-
-	default n
-
-config LGE_USB_G_AUTORUN_LGE
+config USB_G_LGE_ANDROID_AUTORUN_COMMON
 	boolean "LGE specific autorun support in LGE Android"
-	depends on LGE_USB_G_AUTORUN
+	depends on USB_G_LGE_ANDROID_AUTORUN
 	help
 	  It supports LGE specific autorun feature. note that this
 	  must be used in LGE(with non-VZW) devices.
+	  (DGMS: MC-C05702-7)
 
 	  Say y if this must be needed.
 
 	default n
 
-config LGE_USB_G_CDROM_MAC_SUPPORT
+config USB_G_LGE_ANDROID_CDROM_MAC_SUPPORT
 	boolean "USB CDROM support patch of LGE Android on Mac OS-X"
-	depends on LGE_USB_G_ANDROID
+	depends on USB_G_LGE_ANDROID_AUTORUN
 	help
 	  This feature is based on Roger Quadros' patch as following;
 
@@ -1208,7 +1193,7 @@ config LGE_USB_G_CDROM_MAC_SUPPORT
 
 	default n
 
-config LGE_USB_G_MULTIPLE_CONFIGURATION
+config USB_G_LGE_MULTIPLE_CONFIGURATION
 	boolean "LGE Multiple Configuration"
 	help
 	  Support multiple mtp functions in multiple configuration.
@@ -1218,37 +1203,13 @@ config LGE_USB_G_MULTIPLE_CONFIGURATION
 
 	default n
 
-
-config LGE_USB_G_MULTIPLE_CONFIGURATION_VZW
-	boolean "LGE Multiple Configuration"
+config LGE_DIAG_USB_ACCESS_LOCK
+	boolean "feature for usb diag access lock"
 	help
-	  Support multiple configuration for VZW.
-	  Added vzw specific SCSI cmd.
+	  this feature should be applied to meet usb diag lock requirement
 
 	  Say y if this must be needed.
 
 	default n
 
-config LGE_USB_G_LAF
-	boolean "LGE laf driver"
-	default n
-
-config LGE_USB_G_TETHER_DISABLE
-	boolean "Disable USB tethering for TracFone"
-	help
-	  Remove ecm, rndis functions.
-
-	  Say y if this must be needed.
-
-	default n
-
-config USB_EMBEDDED_BATTERY_REBOOT
-	boolean "power cycle when factory cable is connected"
-	help
-	  In case of the phone with embedded battery, power cycle is implemented
-          when factory cable is connected.
-
-	  Say y if this must be needed.
-
-	default n
 endif # USB_GADGET

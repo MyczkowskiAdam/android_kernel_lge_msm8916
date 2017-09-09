@@ -1003,7 +1003,7 @@ void usb_remove_config(struct usb_composite_dev *cdev,
 	spin_unlock_irqrestore(&cdev->lock, flags);
 
 	unbind_config(cdev, config);
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 	config->cdev = NULL;
 #endif
 }

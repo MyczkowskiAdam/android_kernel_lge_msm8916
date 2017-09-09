@@ -72,7 +72,7 @@
 
 #include "ci13xxx_udc.h"
 
-#ifdef CONFIG_LGE_USB_G_ANDROID_PFSC
+#ifdef CONFIG_USB_G_LGE_ANDROID_PFSC
 #ifdef CONFIG_64BIT
 #include <soc/qcom/lge/board_lge.h>
 #else
@@ -346,7 +346,7 @@ static int hw_device_reset(struct ci13xxx *udc)
 {
 	int delay_count = 25; /* 250 usec */
 
-#ifdef CONFIG_LGE_USB_G_ANDROID_PFSC
+#ifdef CONFIG_USB_G_LGE_ANDROID_PFSC
 	enum lge_boot_mode_type boot_mode;
 #endif
 
@@ -389,7 +389,7 @@ static int hw_device_reset(struct ci13xxx *udc)
 		return -ENODEV;
 	}
 
-#ifdef CONFIG_LGE_USB_G_ANDROID_PFSC
+#ifdef CONFIG_USB_G_LGE_ANDROID_PFSC
 
 	/* USB FS only used in 130K */
 
@@ -2985,7 +2985,7 @@ __acquires(udc->lock)
 					udc->gadget.remote_wakeup = 1;
 					err = isr_setup_status_phase(udc);
 					break;
-#ifdef CONFIG_LGE_USB_G_ANDROID_OTG // this feature is not set.
+#ifdef CONFIG_USB_G_LGE_ANDROID_OTG // this feature is not set.
 				case USB_DEVICE_B_HNP_ENABLE:
 					udc->gadget.b_hnp_enable = 1;
 					err = isr_setup_status_phase(udc);
@@ -3006,7 +3006,7 @@ __acquires(udc->lock)
 				case USB_DEVICE_A_ALT_HNP_SUPPORT:
 					err = 0;
 					break;
-#endif // CONFIG_LGE_USB_G_ANDROID_OTG
+#endif // CONFIG_USB_G_LGE_ANDROID_OTG
 				case USB_DEVICE_TEST_MODE:
 					tmode = le16_to_cpu(req.wIndex) >> 8;
 					switch (tmode) {
@@ -3019,7 +3019,7 @@ __acquires(udc->lock)
 						err = isr_setup_status_phase(
 								udc);
 						break;
-#ifdef CONFIG_LGE_USB_G_ANDROID_OTG // this feature is not set.
+#ifdef CONFIG_USB_G_LGE_ANDROID_OTG // this feature is not set.
 					case TEST_OTG_SRP_REQD:
 						udc->gadget.otg_srp_reqd = 1;
 						err = isr_setup_status_phase(
@@ -3037,7 +3037,7 @@ __acquires(udc->lock)
 					case TEST_OTG_HNP_REQD:
 						err = 0;
 						break;
-#endif // CONFIG_LGE_USB_G_ANDROID_OTG
+#endif // CONFIG_USB_G_LGE_ANDROID_OTG
 					default:
 						break;
 					}
