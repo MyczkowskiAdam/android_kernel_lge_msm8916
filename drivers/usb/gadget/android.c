@@ -761,9 +761,6 @@ static int functionfs_ready_callback(struct ffs_data *ffs)
 		}
 	} else {
 		/* android ffs_func requires daemon to start only after enable*/
-#if defined CONFIG_USB_G_LGE_ANDROID && defined CONFIG_LGE_PM
-		if(!lgeusb_get_factory_cable())
-#endif
 		pr_debug("start adbd only in ADB composition\n");
 		return -ENODEV;
 	}
@@ -4653,7 +4650,7 @@ static int android_probe(struct platform_device *pdev)
 	mutex_init(&android_dev->mutex);
 
 #if defined CONFIG_USB_G_LGE_ANDROID && defined CONFIG_LGE_PM
-	if (lgeusb_get_factory_cable())
+	if (lgeusb_get_pif_cable())
 		android_dev->check_pif = true;
 #endif
 
