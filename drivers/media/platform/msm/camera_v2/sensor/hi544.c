@@ -17,62 +17,115 @@ DEFINE_MSM_MUTEX(hi544_mut);
 
 static struct msm_sensor_ctrl_t hi544_s_ctrl;
 
-/////////////////////////////////////////////////////////////////
-// USE Model Feature: If you want to change the follow setting
-/////////////////////////////////////////////////////////////////
-#if defined(CONFIG_MACH_MSM8916_C70N_GLOBAL_COM) || \
-	defined (CONFIG_MACH_MSM8916_C70DS_GLOBAL_COM) || \
-	defined (CONFIG_MACH_MSM8916_C70_GLOBAL_COM) || \
-	defined (CONFIG_MACH_MSM8916_C70N_CRK_US) || \
-	defined (CONFIG_MACH_MSM8916_C70N_ATT_US) || \
-	defined (CONFIG_MACH_MSM8916_C70_USC_US) || \
-	defined (CONFIG_MACH_MSM8916_E7IILTE_SPR_US) || \
-	defined (CONFIG_MACH_MSM8916_C70_RGS_CA) || \
-	defined (CONFIG_MACH_MSM8916_C90_GLOBAL_COM)
+#if defined(CONFIG_MACH_MSM8916_E2_GLOBAL_COM) \
+	|| defined(CONFIG_MACH_MSM8916_E2DS_GLOBAL_COM) \
+    || defined(CONFIG_MACH_MSM8916_E2N_GLOBAL_COM)
 static struct msm_sensor_power_setting hi544_power_setting[] = {
-	{//[3]
-		.seq_type = SENSOR_VREG,
-		.seq_val = CAM_VIO,
-		.config_val = 0,
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_VIO,
+		.config_val = GPIO_OUT_HIGH,
 		.delay = 1,
 	},
-	{//[1]
-		.seq_type = SENSOR_VREG,
-		.seq_val = CAM_VANA,
-		.config_val = 0,
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_VANA,
+		.config_val = GPIO_OUT_HIGH,
 		.delay = 1,
 	},
-	{//[2]
+	{
 		.seq_type = SENSOR_GPIO,
 		.seq_val = SENSOR_GPIO_VDIG,
 		.config_val = GPIO_OUT_HIGH,
 		.delay = 1,
 	},
-	{//[4]
-		.seq_type = SENSOR_VREG,
-		.seq_val = CAM_VAF,
-		.config_val = 0,
-		.delay = 1,
-	},
-	{//[5]
+	{
 		.seq_type = SENSOR_GPIO,
-		.seq_val = SENSOR_GPIO_RESET,
+		.seq_val = SENSOR_GPIO_AF_PWDM,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 1, // >= 16MCLK
+	},
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_STANDBY,
 		.config_val = GPIO_OUT_HIGH,
 		.delay = 1,
 	},
-	{//[6]
+	{
 		.seq_type = SENSOR_CLK,
 		.seq_val = SENSOR_CAM_MCLK,
 		.config_val = 0,
-		.delay = 11,
+		.delay = 11, // >= 10msec
 	},
-	//HI544 has no external-RESET-pin control
-	{//[7]
+	{
 		.seq_type = SENSOR_I2C_MUX,
 		.seq_val = 0,
 		.config_val = 0,
 		.delay = 0,
 	},
+};
+#elif defined(CONFIG_MACH_MSM8916_LGPS19)
+static struct msm_sensor_power_setting hi544_power_setting[] = {
+
+	 {  /* Set GPIO_RESET to low to disable power on reset*/
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_RESET,
+		.config_val = GPIO_OUT_LOW,
+		.delay = 1,
+	},
+	{
+		.seq_type = SENSOR_VREG,
+		.seq_val = CAM_VIO,
+		.config_val = 0,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_VREG,
+		.seq_val = CAM_VANA,
+		.config_val = 0,
+		.delay = 0,
+	},
+#if 0
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_VDIG,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 1,
+	},
+#endif
+	{
+		.seq_type = SENSOR_VREG,
+		.seq_val = CAM_VAF,
+		.config_val = 0,
+		.delay = 0,
+	},
+#if 0
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_STANDBY,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 0,
+	},
+#endif
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_RESET,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 1,
+	},
+	{
+		.seq_type = SENSOR_CLK,
+		.seq_val = SENSOR_CAM_MCLK,
+		.config_val = 0,
+		.delay = 1,
+	},
+	{
+		.seq_type = SENSOR_I2C_MUX,
+		.seq_val = 0,
+		.config_val = 0,
+		.delay = 0,
+	},
+
 };
 #else
 static struct msm_sensor_power_setting hi544_power_setting[] = {
@@ -132,11 +185,13 @@ static int32_t hi544_platform_probe(struct platform_device *pdev)
 	int32_t rc = 0;
 	const struct of_device_id *match;
 	match = of_match_device(hi544_dt_match, &pdev->dev);
+	//                                                   
 	if(!match)
 	{
 		  pr_err(" %s failed ",__func__);
 		  return -ENODEV;
 	 }
+	//                                                   
 	rc = msm_sensor_platform_probe(pdev, match->data);
 	return rc;
 }
@@ -174,8 +229,10 @@ static void __exit hi544_exit_module(void)
 
 static struct msm_sensor_ctrl_t hi544_s_ctrl = {
 	.sensor_i2c_client = &hi544_sensor_i2c_client,
+	/*                                                                                          */
 	.power_setting_array.power_setting = hi544_power_setting,
 	.power_setting_array.size = ARRAY_SIZE(hi544_power_setting),
+	/*                                                                                          */
 	.msm_sensor_mutex = &hi544_mut,
 	.sensor_v4l2_subdev_info = hi544_subdev_info,
 	.sensor_v4l2_subdev_info_size = ARRAY_SIZE(hi544_subdev_info),
