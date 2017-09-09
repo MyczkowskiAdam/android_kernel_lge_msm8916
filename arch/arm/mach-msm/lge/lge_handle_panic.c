@@ -24,8 +24,9 @@
 #include <linux/cpu.h>
 #include <linux/delay.h>
 #include <asm/setup.h>
-#include <soc/qcom/subsystem_restart.h>
-#include <soc/qcom/lge/lge_handle_panic.h>
+#include <mach/subsystem_restart.h>
+#include <mach/msm_iomap.h>
+#include <mach/lge_handle_panic.h>
 #include <mach/board_lge.h>
 
 #if defined(CONFIG_ARCH_MSM8916)
@@ -86,15 +87,14 @@ void lge_set_fb_addr(unsigned int addr)
 
 void lge_set_restart_reason(unsigned int reason)
 {
-#ifdef CONFIG_LGE_USB_G_LAF
+#ifdef CONFIG_LAF_G_DRIVER
 	if ((lge_get_laf_mode() == LGE_LAF_MODE_LAF)
 			&& (reason != LAF_DLOAD_MODE))
 		__raw_writel(LGE_RB_MAGIC | LGE_LAF_CRASH, RESTART_REASON);
 	else
-		__raw_writel(reason, RESTART_REASON);
-#else
-	__raw_writel(reason, RESTART_REASON);
 #endif
+		__raw_writel(reason, RESTART_REASON);
+	__raw_writel(reason, RESTART_REASON);
 }
 
 void lge_set_panic_reason(void)
@@ -157,11 +157,11 @@ static int gen_modem_panic(const char *val, struct kernel_param *kp)
 	}
 	pr_err("gen_modem_panic param to %d\n", gen_modem_panic_type);
 	switch (gen_modem_panic_type) {
-		default:
-			subsystem_restart("modem");
-			break;
 		case 2:
 			subsys_modem_restart();
+			break;
+		default:
+	subsystem_restart("modem");
 			break;
 	}
 	return 0;
@@ -251,9 +251,6 @@ module_param_call(gen_sec_wdt_bite, gen_sec_wdt_bite, param_get_bool,
 static int __init lge_panic_handler_early_init(void)
 {
 	struct device_node *np;
-	uint32_t crash_handler_magic = 0;
-	uint32_t mem_addr = 0;
-	uint32_t mem_size = 0;
 
 	np = of_find_compatible_node(NULL, NULL, "qcom,msm-imem");
 	if (!np) {
@@ -265,24 +262,6 @@ static int __init lge_panic_handler_early_init(void)
 		pr_err("unable to map imem\n");
 		return -ENODEV;
 	}
-
-	np = of_find_compatible_node(NULL, NULL, "ramoops");
-	if (!np) {
-		pr_err("unable to find DT ramoops node\n");
-		return -ENODEV;
-	}
-
-	of_property_read_u32(np, "mem-address", &mem_addr);
-	of_property_read_u32(np, "mem-size", &mem_size);
-	pr_info("mem-address=%d\n", mem_addr);
-	pr_info("mem-size=%d\n", mem_size);
-	lge_set_ram_console_addr(mem_addr, mem_size);
-
-	/* check struct boot_shared_imem_cookie_type is matched */
-	crash_handler_magic = __raw_readl(CRASH_HANDLER_MAGIC);
-	WARN(crash_handler_magic != CRASH_HANDLER_MAGIC_VALUE,
-			"Check sbl's struct boot_shared_imem_cookie_type.\n"
-			"Need to update lge_handle_panic's imem offset.\n");
 
 	/* Set default restart_reason to hw reset. */
 	lge_set_restart_reason(LGE_RB_MAGIC | LGE_ERR_TZ);

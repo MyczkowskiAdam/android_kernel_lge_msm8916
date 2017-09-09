@@ -25,9 +25,6 @@
 #include <linux/platform_device.h>
 
 #include <mach/board_lge.h>
-#include <mach/memory.h>
-
-
 
 #define LOGBUF_SIG    0x6c6f6762
 
@@ -59,8 +56,8 @@ static int bootlog_parse_dt(struct device *dev, struct device_node *node)
 	if (!pdata)
 		return -ENOMEM;
 
-	of_property_read_u32(node, "lge,log_buffer_phy_addr", (u32 *)&pdata->paddr);
-	of_property_read_u32(node, "lge,log_buffer_size", (u32 *)&pdata->size);
+	of_property_read_u32(node, "buffer-address", (u32 *)&pdata->paddr);
+	of_property_read_u32(node, "size", (u32 *)&pdata->size);
 
 	dev->platform_data = pdata;
 
@@ -86,17 +83,11 @@ static int bootlog_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct bootlog_platform_data *pdata = pdev->dev.platform_data;
-	struct device_node *node;
+	struct device_node *node = pdev->dev.of_node;
 
 	unsigned long paddr, size;
 	char *buffer, *token;
 	int err;
-
-	node = of_find_node_by_path("/chosen");
-	if (node == NULL) {
-		pr_err("%s: of_find_node_by_path failed\n", __func__);
-		return -EINVAL;
-	}
 
 	if (!pdata) {
 		err = bootlog_parse_dt(dev, node);
@@ -104,10 +95,6 @@ static int bootlog_probe(struct platform_device *pdev)
 			return err;
 
 		pdata = pdev->dev.platform_data;
-		if (!pdata){
-			pr_err("%s: failed to read platform_data's pointer\n", __func__);
-			return 0;
-		}
 	}
 
 	paddr = pdata->paddr;
