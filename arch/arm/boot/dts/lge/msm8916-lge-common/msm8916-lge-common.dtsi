@@ -12,4 +12,3 @@
 
 #include "msm8916-lge-pm.dtsi"
 #include "msm8916-lge-input.dtsi"
-#include "msm8916-lge-irrc.dtsi"

@@ -13,23 +13,12 @@
 #include "../../qcom/msm8916.dtsi"
 #include "msm8916-lge-common.dtsi"
 
-/ {
-	memory {
-		ramoops_mem: ramoops_region@0x8ff00000 {
-			linux,reserve-contiguous-region;
-			linux,reserve-region;
-			linux,remove-completely;
-			reg = <0x0 0x8ff00000 0x0 0x100000>;
-			label = "ramoops_mem";
-		};
-	};
-};
-
 &soc {
 	ramoops {
 		compatible = "ramoops";
+		qcom,memblock-remove = <0x90000000 0x100000>;
 		mem-size = <0x80000>;
-		mem-address = <0x8ff00000>;
+		mem-address = <0x90000000>;
 		record-size = <0>;
 		console-size = <0x40000>;
 		ftrace-size = <0x40000>;
@@ -38,15 +27,11 @@
 
 	bootlog {
 		compatible = "bootlog";
-		/*
-		 * Actually, physical address & size are read from "/chosen" node.
-		 * The properties are "lge,log_buffer_phy_addr" and "lge,log_buffer_size" added in LK.
-		 * LOGBUF_SIZE is defined in android/bootable/bootloader/lk/include/debug.h.
-		 * LOGBUF_PHYS_ADDR is defined in android/bootable/bootloader/lk/target/msm8916_betae/rules.mk.
-		 */
+		buffer-address = <0x900c0000>;
+		size = <0x20000>;
 	};
 
         qcom,wdt@b017000 {
-                qcom,bark-time = <15000>;
+                qcom,bark-time = <17000>;
         };
 };

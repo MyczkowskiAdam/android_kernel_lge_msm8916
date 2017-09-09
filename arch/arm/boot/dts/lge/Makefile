@@ -14,6 +14,10 @@ endif
 targets += dtbs
 endif
 
+ifeq ($(CONFIG_MACH_MSM8916_E2N_GLOBAL_COM),y)
+	DTS_TARGET := msm8916_e2n_global_com
+endif
+
 DTS_TARGET := $(patsubst "%",%,$(call CONFIG_DTS_TARGET,$(1)))
 
 $(obj)/../%.dtb: $(src)/$(DTS_TARGET)/%.dts
