@@ -78,22 +78,12 @@ struct bcm2079x_platform_data platform_data;
 #define PACKET_TYPE_HCIEV   (4)
 #define MAX_PACKET_SIZE     (PACKET_HEADER_SIZE_NCI + 255)
 
-#ifdef CONFIG_LGE_NFC_USE_PMIC
-#define CLK_DISABLE 0
-#define CLK_PIN 1
-#define CLK_CONT 2
-static struct i2c_client *bcm2079x_client;
-#endif
 
 struct bcm2079x_dev {
     wait_queue_head_t read_wq;
     struct mutex rw_mutex;
     struct i2c_client *client;
     struct miscdevice bcm2079x_device;
-#ifdef CONFIG_LGE_NFC_USE_PMIC
-    struct clk*clk_cont;
-    struct clk*clk_pin;
-#endif
     unsigned int wake_gpio;
     unsigned int en_gpio;
     unsigned int irq_gpio;
@@ -108,7 +98,7 @@ struct wake_lock nfc_wake_lock;
 #if defined(BCM2079X_MTK_PLATFORM)
 
 #else
-struct	clk		*s_clk;
+struct clk *s_clk;
 #endif
 
 #if defined(BCM2079X_MTK_PLATFORM)
@@ -272,7 +262,7 @@ static irqreturn_t bcm2079x_dev_irq_handler(int irq, void *dev_id)
     struct bcm2079x_dev *bcm2079x_dev = g_bcm2079x_dev;
     pr_info("%s irq_gpio %d\n", __func__, mt_get_gpio_in(platform_data.irq_gpio));
 #else
-	struct bcm2079x_dev *bcm2079x_dev = dev_id;
+    struct bcm2079x_dev *bcm2079x_dev = dev_id;
     //pr_info("%s irq_gpio %d\n", __func__, gpio_get_value(platform_data.irq_gpio));
 #endif /*End of BCM2079X_MTK_PLATFORM*/
     wake_up(&bcm2079x_dev->read_wq);
@@ -309,10 +299,10 @@ static unsigned int bcm2079x_dev_poll(struct file *filp, poll_table *wait)
     if(gpio_get_value(platform_data.irq_gpio) == 1)  //irq gpio get
 #endif /*End of BCM2079X_MTK_PLATFORM*/
     {
-	    mask |= POLLIN | POLLRDNORM;
+        mask |= POLLIN | POLLRDNORM;
     }
 
-	spin_unlock_irqrestore(&bcm2079x_dev->irq_enabled_lock, flags);
+    spin_unlock_irqrestore(&bcm2079x_dev->irq_enabled_lock, flags);
 
     return mask;
 }
@@ -439,98 +429,12 @@ static int bcm2079x_dev_open(struct inode *inode, struct file *filp)
     return ret;
 }
 
-#ifdef CONFIG_LGE_NFC_USE_PMIC
-void bcm2079x_get_clk_source(struct i2c_client *bcm2079x_client, struct bcm2079x_dev *bcm2079x_dev)
-{
-    bcm2079x_dev->clk_cont = clk_get(&bcm2079x_client->dev, "cont_clk");
-    if (bcm2079x_dev->clk_cont == NULL) {
-        pr_err("%s: BCM2079x could not get cont. clock!\n", __func__);
-    }
-
-    bcm2079x_dev->clk_pin = clk_get(&bcm2079x_client->dev, "pin_clk");
-    if (bcm2079x_dev->clk_pin == NULL) {
-        pr_err("%s: BCM2079x could not get pin clock!\n", __func__);
-    }
-    pr_err("%s: xo_cont = %p, xo_pin = %p\n", __func__, bcm2079x_dev->clk_cont, bcm2079x_dev->clk_pin); // for debug
-}
-
-static void bcm2079x_change_clk(struct bcm2079x_dev *bcm2079x_dev, unsigned int clk_state)
-{
-    static unsigned int nOldClkState = CLK_DISABLE;
-    int ret = 0;
-
-    if (nOldClkState == clk_state) {
-        pr_err("%s: Desired clock state(%d) is same as previous state(%d)! Skip!\n", __func__, clk_state, nOldClkState);
-    }
-    else {
-        switch (clk_state) {
-            case CLK_DISABLE:
-                if (nOldClkState == CLK_PIN) {
-                    if (bcm2079x_dev->clk_pin != NULL) {
-                        clk_disable_unprepare(bcm2079x_dev->clk_pin);
-                        nOldClkState = CLK_DISABLE;
-                        pr_err("%s: PMIC Clock is Disabled\n", __func__); // for debug
-                    }
-                    else {
-                        pr_err("%s: BCM2079x could not get clock!\n", __func__);
-
-                    }
-                }
-                else if (nOldClkState == CLK_CONT) {
-                    if (bcm2079x_dev->clk_cont != NULL) {
-                        clk_disable_unprepare(bcm2079x_dev->clk_cont);
-                        nOldClkState = CLK_DISABLE;
-                        pr_err("%s: PMIC Clock is Disabled\n", __func__); // for debug
-                    }
-                    else {
-                        pr_err("%s: BCM2079x could not get clock!\n", __func__);
-                    }
-                }
-                break;
-            case CLK_PIN:
-                if (bcm2079x_dev->clk_pin != NULL) {
-                    ret = clk_prepare_enable(bcm2079x_dev->clk_pin);
-                    if (ret) {
-                        pr_err("%s: BCM2079x could not enable clock (%d)\n", __func__, ret);
-                        clk_disable_unprepare(bcm2079x_dev->clk_pin);
-                        nOldClkState = CLK_DISABLE;
-                    }
-                    nOldClkState = CLK_PIN;
-                    pr_err("%s: PMIC Clock source is CXO_D1_PIN!\n", __func__); // for debug
-                }
-                else {
-                    pr_err("%s: BCM2079x could not get pin clock!\n", __func__);
-                }
-                break;
-            case CLK_CONT:
-                if (bcm2079x_dev->clk_cont != NULL) {
-                    ret = clk_prepare_enable(bcm2079x_dev->clk_cont);
-                    if (ret) {
-                        pr_err("%s: BCM2079x could not enable clock (%d)\n", __func__, ret);
-                        clk_disable_unprepare(bcm2079x_dev->clk_cont);
-                        nOldClkState = CLK_DISABLE;
-                    }
-                    nOldClkState = CLK_CONT;
-                    pr_err("%s: PMIC Clock source is CXO_D1!\n", __func__); // for debug
-                }
-                else {
-                    pr_err("%s: BCM2079x could not get cont. clock!\n", __func__);
-                }
-                break;
-            default:
-                pr_err("%s: Undefined Clock Setting!\n", __func__);
-                break;
-        }
-    }
-}
-#endif /* CONFIG_LGE_NFC_USE_PMIC */
-
 static long bcm2079x_dev_unlocked_ioctl(struct file *filp,
                      unsigned int cmd, unsigned long arg)
 {
     struct bcm2079x_dev *bcm2079x_dev = filp->private_data;
 
-	pr_info("%s,  cmd (%x) arg %lx \n", __func__, cmd, arg);
+    pr_info("%s,  cmd (%x) arg %lx \n", __func__, cmd, arg);
 
     switch (cmd) {
     case BCMNFC_READ_FULL_PACKET:
@@ -547,16 +451,6 @@ static long bcm2079x_dev_unlocked_ioctl(struct file *filp,
 #if defined(BCM2079X_MTK_PLATFORM)
         mt_set_gpio_out(bcm2079x_dev->en_gpio, (int)arg);
 #else
-#ifdef CONFIG_LGE_NFC_USE_PMIC
-        if(arg == 0)
-        {
-            pr_err("BCM2079x - CLK_DISABLE\n");
-            bcm2079x_change_clk(bcm2079x_dev, CLK_DISABLE);
-        } else {
-            pr_err("BCM2079x - CLK_PIN\n");
-            bcm2079x_change_clk(bcm2079x_dev, CLK_PIN);
-        }
-#endif /*CONFIG_LGE_NFC_USE_PMIC*/
         gpio_set_value(bcm2079x_dev->en_gpio, arg);
 #endif /*End of BCM2079X_MTK_PLATFORM*/
         break;
@@ -591,9 +485,7 @@ static int bcm2079x_probe(struct i2c_client *client,
 {
     int ret;
     struct bcm2079x_dev *bcm2079x_dev = NULL;
-#ifdef CONFIG_LGE_NFC_USE_PMIC
-    bcm2079x_client = client;
-#endif
+
     bcm2079x_dev = kzalloc(sizeof(*bcm2079x_dev), GFP_KERNEL);
     if (bcm2079x_dev == NULL) {
         pr_err("failed to allocate memory for module data\n");
@@ -644,12 +536,9 @@ static int bcm2079x_probe(struct i2c_client *client,
         pr_err("nfc probe of_node fail\n");
         return -ENODEV;
     }
-#ifdef CONFIG_LGE_NFC_USE_PMIC
-    bcm2079x_get_clk_source(bcm2079x_client, bcm2079x_dev);
-#else  // Temp remaining for not applied CONFIG_LGE_NFC_USE_PMIC
+
     s_clk = clk_get(&client->dev, "ref_clk");
     clk_prepare_enable(s_clk);
-#endif
 
     ret = gpio_request_one(platform_data.irq_gpio, GPIOF_IN, "nfc_int");
     if (ret)
@@ -661,7 +550,7 @@ static int bcm2079x_probe(struct i2c_client *client,
     if (ret)
         goto err_exit;
 
-    gpio_set_value(platform_data.en_gpio, 0);
+    gpio_set_value(platform_data.en_gpio, 1);
     msleep(50);
     gpio_set_value(platform_data.en_gpio, 0);
     gpio_set_value(platform_data.wake_gpio, 0);
