@@ -38,21 +38,17 @@
 
 #ifdef CONFIG_USB_G_LGE_ANDROID
 #include <linux/platform_data/lge_android_usb.h>
-#endif
 #ifdef CONFIG_LGE_PM
-#include <soc/qcom/lge/board_lge.h>
-#endif
-#ifdef CONFIG_USB_EMBEDDED_BATTERY_REBOOT
 #include <mach/board_lge.h>
 #include <linux/reboot.h>
 #include <soc/qcom/restart.h>
+#endif
 #endif
 #include "f_fs.c"
 #ifdef CONFIG_SND_PCM
 #include "f_audio_source.c"
 #endif
-//#ifdef CONFIG_SND_RAWMIDI
-#ifdef CONFIG_USB_G_LGE_ANDROID
+#ifdef CONFIG_SND_RAWMIDI
 #include "f_midi.c"
 #endif
 #include "f_mass_storage.c"
@@ -3185,8 +3181,8 @@ static struct android_usb_function uasp_function = {
 	.bind_config	= uasp_function_bind_config,
 };
 
-#ifdef CONFIG_USB_G_LGE_ANDROID
-//#ifdef CONFIG_SND_RAWMIDI
+//#ifdef CONFIG_USB_G_LGE_ANDROID
+#ifdef CONFIG_SND_RAWMIDI
 static int midi_function_init(struct android_usb_function *f,
 					struct usb_composite_dev *cdev)
 {
@@ -3276,8 +3272,8 @@ static struct android_usb_function *supported_functions[] = {
 #ifdef CONFIG_SND_PCM
 	&audio_source_function,
 #endif
-//#ifdef CONFIG_SND_RAWMIDI
-#ifdef CONFIG_USB_G_LGE_ANDROID
+#ifdef CONFIG_SND_RAWMIDI
+//#ifdef CONFIG_USB_G_LGE_ANDROID
 	&midi_function,
 #endif
 	&uasp_function,
