@@ -428,6 +428,12 @@ hw_rev_type lge_get_board_revno(void)
 	return lge_bd_rev;
 }
 
+char *lge_get_board_rev(void)
+{
+    char *name;
+    name = rev_str[lge_bd_rev];
+    return name;
+}
 #if defined(CONFIG_LCD_KCAL)
 int g_kcal_r = 255;
 int g_kcal_g = 255;

@@ -18,6 +18,7 @@ typedef enum {
 extern char *rev_str[];
 
 hw_rev_type lge_get_board_revno(void);
+char *lge_get_board_rev(void);
 
 enum acc_cable_type {
 	NO_INIT_CABLE = 0,
