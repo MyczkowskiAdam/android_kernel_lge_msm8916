@@ -48,6 +48,11 @@ struct mdss_panel_data *pdata_base;
 extern int lge_lg4945_panel_mode_cmd_send(int switch_cmd, struct mdss_dsi_ctrl_pdata *ctrl);
 #endif
 
+#if defined(CONFIG_LGD_INCELL_VIDEO_WVGA_PT_PANEL)
+static struct mdss_panel_data *pdata_base;
+static struct dsi_panel_cmds lge_display_on_cmds;
+#endif
+
 #if defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
 #include <linux/mutex.h>
 #include <linux/i2c.h>
