@@ -1,103 +1,6 @@
 #ifndef __ASM_ARCH_MSM_BOARD_LGE_H
 #define __ASM_ARCH_MSM_BOARD_LGE_H
 
-#if defined(CONFIG_MACH_MSM8916_E7IILTE_SPR_US) || defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) || \
-	defined(CONFIG_MACH_MSM8939_P1BC_SPR_US) || defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || \
-	defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) || defined(CONFIG_MACH_MSM8939_P1BSSN_VTR_CA) || \
-	defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
-typedef enum {
-	HW_REV_0 = 0,
-	HW_REV_A,
-	HW_REV_B,
-	HW_REV_C,
-	HW_REV_D,
-	HW_REV_E,
-	HW_REV_1_0,
-	HW_REV_1_1,
-	HW_REV_MAX
-} hw_rev_type;
-#elif defined (CONFIG_MACH_MSM8916_C70N_CRK_US) || defined (CONFIG_MACH_MSM8916_C70N_TMO_US) || \
-      defined (CONFIG_MACH_MSM8916_C70_USC_US) || defined (CONFIG_MACH_MSM8916_STYLUSC_SPR_US) || \
-      defined (CONFIG_MACH_MSM8916_G4STYLUSN_TMO_US) || defined (CONFIG_MACH_MSM8916_C70N_ATT_US) || \
-      defined (CONFIG_MACH_MSM8916_C70N_MPCS_US) || defined (CONFIG_MACH_MSM8916_G4STYLUS_CRK_US) || \
-      defined (CONFIG_MACH_MSM8916_G4STYLUSN_GLOBAL_COM) || defined (CONFIG_MACH_MSM8916_G4STYLUSN_MPCS_US) || \
-      defined (CONFIG_MACH_MSM8916_G4STYLUSDS_GLOBAL_COM) || defined (CONFIG_MACH_MSM8916_C70_RGS_CA) || defined(CONFIG_MACH_MSM8916_C90NAS_SPR_US) || \
-      defined (CONFIG_MACH_MSM8916_G4STYLUSW_KT_KR) || defined (CONFIG_MACH_MSM8916_C70W_KR) || defined (CONFIG_MACH_MSM8916_G4STYLUSN_RGS_CA) || \
-      defined (CONFIG_MACH_MSM8916_G4STYLUSN_VTR_CA) || defined (CONFIG_MACH_MSM8916_K5)
-typedef enum {
-	HW_REV_A = 0,
-	HW_REV_B,
-	HW_REV_C,
-	HW_REV_D,
-	HW_REV_E,
-	HW_REV_F,
-	HW_REV_G,
-	HW_REV_1_0,
-	HW_REV_1_1,
-	HW_REV_MKT,
-	HW_REV_MAX
-} hw_rev_type;
-#elif defined(CONFIG_MACH_MSM8916_PH1_GLOBAL_COM) || defined (CONFIG_MACH_MSM8916_PH1_VZW) || \
-      defined (CONFIG_MACH_MSM8916_PH1_SPR_US) || defined (CONFIG_MACH_MSM8916_PH1_KR) || \
-      defined (CONFIG_MACH_MSM8916_PH1_CRK_US)
-typedef enum {
-        HW_REV_A = 0,
-        HW_REV_A2,
-        HW_REV_B,
-        HW_REV_C,
-        HW_REV_D,
-        HW_REV_E,
-        HW_REV_F,
-        HW_REV_G,
-        HW_REV_1_0,
-        HW_REV_1_1,
-        HW_REV_MAX
-} hw_rev_type;
-#elif defined(CONFIG_MACH_MSM8916_C30_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C30DS_GLOBAL_COM)
-typedef enum {
-	HW_REV_EVB1 = 0,
-	HW_REV_EVB2,
-	HW_REV_A,
-	HW_REV_A2,
-	HW_REV_B,
-	HW_REV_C,
-	HW_REV_D,
-	HW_REV_E,
-	HW_REV_F,
-	HW_REV_1_0,
-	HW_REV_1_1,
-	HW_REV_MAX
-} hw_rev_type;
-#elif defined (CONFIG_MACH_MSM8916_YG_SKT_KR) || defined (CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM)
-typedef enum {
-	HW_REV_0 = 0,
-	HW_REV_A,
-	HW_REV_B,
-	HW_REV_C,
-	HW_REV_D,
-	HW_REV_E,
-	HW_REV_F,
-	HW_REV_1_0,
-	HW_REV_1_1,
-	HW_REV_MKT,
-	HW_REV_MAX
-} hw_rev_type;
-#elif defined (CONFIG_MACH_MSM8916_M216N_KR) || defined(CONFIG_MACH_MSM8916_M216_GLOBAL_COM)
-typedef enum {
-	HW_REV_0 = 0,
-	HW_REV_A,
-	HW_REV_B,
-	HW_REV_C,
-	HW_REV_D,
-	HW_REV_E,
-	HW_REV_F,
-	HW_REV_1_0,
-	HW_REV_1_1,
-	HW_REV_1_2,
-	HW_REV_1_3,
-	HW_REV_MAX
-} hw_rev_type;
-#else
 typedef enum {
 	HW_REV_EVB1 = 0,
 	HW_REV_EVB2,
@@ -111,12 +14,11 @@ typedef enum {
 	HW_REV_1_1,
 	HW_REV_MAX
 } hw_rev_type;
-#endif
 
 extern char *rev_str[];
 
 hw_rev_type lge_get_board_revno(void);
-char *lge_get_board_rev(void);
+
 enum acc_cable_type {
 	NO_INIT_CABLE = 0,
 	CABLE_MHL_1K,
@@ -149,12 +51,9 @@ void lge_pm_read_cable_info(struct qpnp_vadc_chip *);
 enum acc_cable_type lge_pm_get_cable_type(void);
 unsigned lge_pm_get_ta_current(void);
 unsigned lge_pm_get_usb_current(void);
-#ifdef CONFIG_USB_EMBEDDED_BATTERY_REBOOT
-int lge_get_android_dlcomplete(void);
-#endif
+
 #if defined(CONFIG_PRE_SELF_DIAGNOSIS)
 int lge_pre_self_diagnosis(char *drv_bus_code, int func_code, char *dev_code, char *drv_code, int errno);
-int lge_pre_self_diagnosis_pass(char *dev_code);
 #endif
 
 #if defined(CONFIG_LCD_KCAL)
@@ -169,14 +68,6 @@ struct kcal_platform_data {
 	int (*get_values) (int *r, int *g, int *b);
 	int (*refresh_display) (void);
 };
-#endif
-
-#if defined(CONFIG_LGE_DIC_TRIPLE_DETECT)
-#if IS_ENABLED(CONFIG_LGE_DISPLAY_CODE_REFACTORING)
-int lge_get_lg4895_revision(void);
-#else
-int lge_get_db7400_cut(void);
-#endif
 #endif
 
 #if defined(CONFIG_PRE_SELF_DIAGNOSIS)
@@ -206,23 +97,10 @@ enum lge_laf_mode_type {
 };
 enum lge_laf_mode_type lge_get_laf_mode(void);
 
-bool lge_get_mfts_mode(void);
-
 #if defined(CONFIG_LCD_KCAL)
 void __init lge_add_lcd_kcal_devices(void);
 #endif
 
-#ifdef CONFIG_LGE_QFPROM_INTERFACE
-void __init lge_add_qfprom_devices(void);
-#endif
-
-#ifdef CONFIG_LGE_QSDL_SUPPORT
-void __init lge_add_qsdl_device(void);
-#endif
-
-#if defined(CONFIG_LGE_USB_DIAG_LOCK) || defined(CONFIG_LGE_DIAG_ENABLE_SYSFS)
-void __init lge_add_diag_devices(void);
-#endif
 #ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
 struct pseudo_batt_info_type {
 	int mode;
@@ -252,8 +130,6 @@ enum {
 	BATT_ID_SW3800_VC0,
 	BATT_ID_SW3800_VC1,
 	BATT_ID_SW3800_VC2,
-	BATT_ID_10KOHM_TCD,
-	BATT_ID_OPEN_LGC,
 };
 bool is_lge_battery_valid(void);
 int read_lge_battery_id(void);
@@ -271,19 +147,17 @@ enum lge_boot_mode_type {
 	LGE_BOOT_MODE_PIF_56K,
 	LGE_BOOT_MODE_PIF_130K,
 	LGE_BOOT_MODE_PIF_910K,
-	LGE_BOOT_MODE_MINIOS    /* LGE_UPDATE for MINIOS2.0 */
+	LGE_BOOT_MODE_MINIOS    /*                          */
 };
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_USB_G_LGE_ANDROID
 void __init lge_add_android_usb_devices(void);
 #endif
 
-#if defined(CONFIG_LGE_QSDL_SUPPORT)
-int lge_get_bootreason(void);
-#endif
-#if defined(CONFIG_LGE_LCD_OFF_DIMMING)
-int lge_get_bootreasoncode(void);
-#endif
 enum lge_boot_mode_type lge_get_boot_mode(void);
 int lge_get_factory_boot(void);
+#endif
+
+#ifdef CONFIG_LGE_QFPROM_INTERFACE
+void __init lge_add_qfprom_devices(void);
 #endif

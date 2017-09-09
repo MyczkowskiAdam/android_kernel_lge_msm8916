@@ -28,24 +28,17 @@
 
 /* Battery temperature states */
 enum lge_battemp_states {
-#ifdef CONFIG_LGE_PM_CHARGER_TEMP_SCENARIO_SPRINT
-	CHG_BATTEMP_BL_M5,
-	CHG_BATTEMP_M4_41,
-	CHG_BATTEMP_42_44,
-	CHG_BATTEMP_45_52,
-	CHG_BATTEMP_AB_OT,
-#elif defined(CONFIG_LGE_PM_CHARGER_TEMP_SCENARIO_COMMON)
 	CHG_BATTEMP_BL_M11,
 	CHG_BATTEMP_M10_M5,
-	CHG_BATTEMP_M4_42,
-	CHG_BATTEMP_43_45,
+	CHG_BATTEMP_M4_41,
+	CHG_BATTEMP_42_45,
 	CHG_BATTEMP_46_51,
 	CHG_BATTEMP_52_OT,
 	CHG_BATTEMP_AB_OT,
-#endif
+
 };
 
-/* LGE charging states */
+/*                     */
 enum lge_charging_states {
 	CHG_BATT_NORMAL_STATE,
 	CHG_BATT_DECCUR_STATE,
@@ -53,12 +46,12 @@ enum lge_charging_states {
 	CHG_BATT_STPCHG_STATE,
 };
 
-/* LGE charging states change */
+/*                            */
 enum lge_states_changes {
 	STS_CHE_NONE,
 	STS_CHE_NORMAL_TO_DECCUR,
 	STS_CHE_NORMAL_TO_STPCHG,
-	STS_CHE_DECCUR_TO_NORMAL,
+	STS_CHE_DECCUR_TO_NORAML,
 	STS_CHE_DECCUR_TO_STPCHG,
 	STS_CHE_STPCHG_TO_NORMAL,
 	STS_CHE_STPCHG_TO_DECCUR,
@@ -102,5 +95,5 @@ struct batt_temp_table {
 extern void
 lge_monitor_batt_temp(struct charging_info req, struct charging_rsp *res);
 #endif
-/* __LGE_CHARGING_SCENARIO_H_ */
+/*                            */
 
