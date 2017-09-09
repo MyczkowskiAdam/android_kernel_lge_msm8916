@@ -30,13 +30,12 @@
 #include <linux/syscalls.h>
 #include <linux/uaccess.h>
 #include <asm/unaligned.h>
-//#include <soc/qcom/gpiomux.h>
+#include <mach/gpiomux.h>
 #include <linux/uaccess.h>
 #include <linux/time.h>
 #include <linux/file.h>
 #include <linux/syscalls.h>
 #include <linux/async.h>
-#include <mach/board_lge.h>
 
 #include "lge_ts_core.h"
 
@@ -160,7 +159,6 @@ enum {
 #define MIT_LPWG_START_REG               0x90
 #define MIT_LPWG_PANEL_DEBUG_REG         0x91
 #define MIT_LPWG_FAIL_REASON_REG         0x92
-#define MIT_LPWG_LCD_STATUS_REG          0x93
 
 /* Universal commands */
 #define MIT_UNIV_ENTER_TESTMODE			0x40
@@ -220,7 +218,6 @@ struct mms_dev {
 	u8 row_num;
 	u8 col_num;
 	u8 key_num;
-	u8 lcd_status;
 };
 
 struct mms_section {
@@ -233,7 +230,7 @@ struct mms_section {
 };
 
 struct mms_module {
-	u8 product_code[24];
+	u8 product_code[16];
 	u8 version[2];
 	u8 otp;
 };
@@ -322,5 +319,5 @@ ssize_t mit_delta_show(struct i2c_client *client, char *buf);
 //ssize_t mit_openshort_show(struct i2c_client *client, char *buf);
 int mit_isc_page_read(struct mms_data *ts, u8 *rdata, int addr);
 int mit_isc_exit(struct mms_data *ts);
-#endif // LGE_TS_MELFAS_H
+#endif //                
 

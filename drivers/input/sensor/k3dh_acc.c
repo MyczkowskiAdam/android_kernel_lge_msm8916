@@ -59,22 +59,14 @@
 
 #include	<linux/regulator/consumer.h>
 #include	<linux/of_gpio.h>
-
-#ifdef K3DH_ACCEL_CALIBRATION
-#include <linux/syscalls.h>
-#include <linux/fs.h>
-#include <linux/uaccess.h>
-#include <linux/time.h>
-#endif
+/*
+#include	<linux/input/k3dh.h>
+ */
 #include	"k3dh.h"
 
-// #define USE_DEFAULT_PINCTRL_NAME  /* Using pinctrl-names value is "default" in DTSi file */
+#define USE_DEFAULT_PINCTRL_NAME  /* Using pinctrl-names value is "default" in DTSi file */
 
 #define K3DH_OPEN_ENABLE	1
-#define K3DH_AXIS_X             0
-#define K3DH_AXIS_Y             1
-#define K3DH_AXIS_Z             2
-
 #define DEBUG	0
 
 #define	INTERRUPT_MANAGEMENT 0
@@ -93,12 +85,11 @@
 #define SENSITIVITY_8G		4	/**	mg/LSB	*/
 #define SENSITIVITY_16G		12	/**	mg/LSB	*/
 
-#define IF_ADD_INC		0x04	/* for K2HH */
+
 #define	HIGH_RESOLUTION		0x08
 
 #define	AXISDATA_REG		0x28
 #define WHOAMI_K3DH_ACC	0x33	/*	Expctd content for WAI	*/
-#define WHOAMI_K2HH_ACC	0x41	/* for K2HH */
 
 /*	CONTROL REGISTERS	*/
 #define WHO_AM_I		0x0F	/*	WhoAmI register		*/
@@ -136,23 +127,9 @@
 
 #define K3DH_ACC_PM_OFF		0x00
 #define K3DH_ACC_ENABLE_ALL_AXES	0x07
-#ifdef K3DH_ACCEL_CALIBRATION
-#define K3DH_SHAKING_DETECT_THRESHOLD 200
-#define CALIBRATION_DATA_AMOUNT 10
-#endif
 
 #define PMODE_MASK			0x08
 #define ODR_MASK			0XF0
-
-/* for K2HH */
-#define K2HH_ODR_POWERDOWN_MODE	0x00  /* Power Down Mode */
-#define K2HH_ODR10              0x10  /* 10Hz output data rate */
-#define K2HH_ODR50              0x20  /* 50Hz output data rate */
-#define K2HH_ODR100             0x30  /* 100Hz output data rate */
-#define K2HH_ODR200             0x40  /* 200Hz output data rate */  // default speed
-#define K2HH_ODR400             0x50  /* 400Hz output data rate */
-#define K2HH_ODR800             0x60    /* 800Hz output data rate */
-/* end for K2HH */
 
 #define ODR1		0x10  /* 1Hz output data rate */
 #define ODR10		0x20  /* 10Hz output data rate */
@@ -179,37 +156,6 @@
 #define	CTRL_REG6_HLACTIVE	0x02
 /* */
 
-#define K3DH_LP_EN_MSK      0x08
-#define K3DH_LP_EN_POS      3
-#define K3DH_LP_EN_REG      CTRL_REG1
-
-/* for K2HH */
-#define K2HH_HR_MSK             0x80
-#define K2HH_HR_POS             7
-#define K2HH_HR_REG             CTRL_REG1
-/* end for K2HH */
-
-#define K3DH_HR_MSK             0x08
-#define K3DH_HR_POS             3
-#define K3DH_HR_REG             CTRL_REG4
-
-#define K3DH_FS_MSK             0x30
-#define K3DH_FS_POS             4
-#define K3DH_FS_REG             CTRL_REG4
-
-/* for K2HH */
-#define K2HH_ODR_MSK          0x70
-#define K2HH_ODR_POS          4
-#define K2HH_ODR_REG          CTRL_REG1
-/* end for K2HH */
-#define K3DH_ODR_MSK          0xF0
-#define K3DH_ODR_POS          4
-#define K3DH_ODR_REG          CTRL_REG1
-
-#define K3DH_MODE_LOWPOWER				0
-#define K3DH_MODE_NORMAL    			1
-#define K3DH_MODE_HIGH_RESOLUTION		2
-
 /* TAP_SOURCE_REG BIT */
 #define	DTAP			0x20
 #define	STAP			0x10
@@ -228,10 +174,6 @@
 #define	I2C_RETRY_DELAY		5
 #define	I2C_RETRIES		5
 #define	I2C_AUTO_INCREMENT	0x80
-
-
-#define K2HH_I2C_AUTO_INCREMENT    0x00 /* for K2HH */
-
 
 /* RESUME STATE INDICES */
 #define	RES_CTRL_REG1		0
@@ -265,14 +207,6 @@ struct {
 	unsigned int cutoff_ms;
 	unsigned int mask;
 } k3dh_acc_odr_table[] = {
-#ifdef K2HH_ENABLE
-			{ 1, K2HH_ODR800 },
-			{ 3, K2HH_ODR400 },
-			{ 5, K2HH_ODR200 },
-			{ 10, K2HH_ODR100 },
-			{ 20, K2HH_ODR50 },
-			{ 100, K2HH_ODR10 },
-#else
 			{ 1, ODR1250 },
 			{ 3, ODR400 },
 			{ 5, ODR200 },
@@ -281,15 +215,6 @@ struct {
 			{ 40, ODR25 },
 			{ 100, ODR10 },
 			{ 1000, ODR1 },
-#endif
-};
-
-/* K3DH acceleration data */
-struct k3dh_acc {
-	s16 x;
-	s16 y;
-	s16 z;
-	int bCalLoaded;
 };
 
 struct k3dh_acc_data {
@@ -300,14 +225,11 @@ struct k3dh_acc_data {
 	struct delayed_work input_work;
 
 	struct input_dev *input_dev;
-#ifdef K3DH_ACCEL_CALIBRATION
-	struct k3dh_acc cal_data;
-#endif
+
 	int hw_initialized;
 	/* hw_working=-1 means not tested yet */
 	int hw_working;
 	atomic_t enabled;
-	atomic_t selftest_rslt;
 	int on_before_suspend;
 
 	u8 sensitivity;
@@ -326,13 +248,6 @@ struct k3dh_acc_data {
 	struct pinctrl *k3dh_pinctrl;
 	struct pinctrl_state *gpio_state_active;
 	struct pinctrl_state *gpio_state_suspend;
-
-#ifdef K3DH_ACCEL_CALIBRATION
-	atomic_t fast_calib_x_rslt;
-	atomic_t fast_calib_y_rslt;
-	atomic_t fast_calib_z_rslt;
-	atomic_t fast_calib_rslt;
-#endif
 };
 
 /*
@@ -400,138 +315,6 @@ static int k3dh_acc_i2c_write(struct k3dh_acc_data *acc, u8 *buf, int len)
 	return err;
 }
 
-static int k3dh_acc_register_write(struct k3dh_acc_data *acc, u8 *buf,
-		u8 reg_address, u8 new_value)
-{
-	int err = -1;
-
-	if (atomic_read(&acc->enabled)) {
-/* Sets configuration register at reg_address
- * NOTE: this is a straight overwrite
- */
-		buf[0] = reg_address;
-		buf[1] = new_value;
-		err = k3dh_acc_i2c_write(acc, buf, 1);
-		if (err < 0)
-			return err;
-	}
-	return err;
-}
-
-static int k3dh_acc_register_read(struct k3dh_acc_data *acc, u8 *buf,
-		u8 reg_address)
-{
-
-	int err;
-
-	buf[0] = reg_address;
-	err = k3dh_acc_i2c_read(acc, buf, 1);
-	return err;
-}
-
-#ifdef K2HH_ENABLE
-static int k2hh_acc_hw_init(struct k3dh_acc_data *acc)
-{
-	int err;
-	u8 buf[7];
-
-	pr_info("%s: hw init start\n", K3DH_ACC_DEV_NAME);
-
-	buf[0] = WHO_AM_I;
-	err = k3dh_acc_i2c_read(acc, buf, 1);
-	if (err < 0)
-		goto error_firstread;
-	else
-		acc->hw_working = 1;
-	if (buf[0] != WHOAMI_K2HH_ACC) {
-		err = -1; /* choose the right coded error */
-		goto error_unknown_device;
-	}
-	buf[0] = CTRL_REG1;
-	buf[1] = acc->resume_state[RES_CTRL_REG1];
-	err = k3dh_acc_i2c_write(acc, buf, 1);
-	if (err < 0)
-		goto error1;
-	buf[0] = TEMP_CFG_REG;
-	buf[1] = acc->resume_state[RES_TEMP_CFG_REG];
-	err = k3dh_acc_i2c_write(acc, buf, 1);
-	if (err < 0)
-		goto error1;
-
-	buf[0] = FIFO_CTRL_REG;
-	buf[1] = acc->resume_state[RES_FIFO_CTRL_REG];
-	err = k3dh_acc_i2c_write(acc, buf, 1);
-	if (err < 0)
-		goto error1;
-
-	buf[0] = (K2HH_I2C_AUTO_INCREMENT | TT_THS);
-	buf[1] = acc->resume_state[RES_TT_THS];
-	buf[2] = acc->resume_state[RES_TT_LIM];
-	buf[3] = acc->resume_state[RES_TT_TLAT];
-	buf[4] = acc->resume_state[RES_TT_TW];
-	err = k3dh_acc_i2c_write(acc, buf, 4);
-	if (err < 0)
-		goto error1;
-	buf[0] = TT_CFG;
-	buf[1] = acc->resume_state[RES_TT_CFG];
-	err = k3dh_acc_i2c_write(acc, buf, 1);
-	if (err < 0)
-		goto error1;
-
-	buf[0] = (K2HH_I2C_AUTO_INCREMENT | INT_THS1);
-	buf[1] = acc->resume_state[RES_INT_THS1];
-	buf[2] = acc->resume_state[RES_INT_DUR1];
-	err = k3dh_acc_i2c_write(acc, buf, 2);
-	if (err < 0)
-		goto error1;
-	buf[0] = INT_CFG1;
-	buf[1] = acc->resume_state[RES_INT_CFG1];
-	err = k3dh_acc_i2c_write(acc, buf, 1);
-	if (err < 0)
-		goto error1;
-
-	buf[0] = (K2HH_I2C_AUTO_INCREMENT | INT_THS2);
-	buf[1] = acc->resume_state[RES_INT_THS2];
-	buf[2] = acc->resume_state[RES_INT_DUR2];
-	err = k3dh_acc_i2c_write(acc, buf, 2);
-	if (err < 0)
-		goto error1;
-	buf[0] = INT_CFG2;
-	buf[1] = acc->resume_state[RES_INT_CFG2];
-	err = k3dh_acc_i2c_write(acc, buf, 1);
-	if (err < 0)
-		goto error1;
-
-	buf[0] = (K2HH_I2C_AUTO_INCREMENT | CTRL_REG2);
-	buf[1] = acc->resume_state[RES_CTRL_REG2];
-	buf[2] = acc->resume_state[RES_CTRL_REG3];
-	buf[3] = acc->resume_state[RES_CTRL_REG4];
-	buf[4] = acc->resume_state[RES_CTRL_REG5];
-	buf[5] = acc->resume_state[RES_CTRL_REG6];
-	err = k3dh_acc_i2c_write(acc, buf, 5);
-	if (err < 0)
-		goto error1;
-
-	acc->hw_initialized = 1;
-	pr_info("%s: hw init done\n", K3DH_ACC_DEV_NAME);
-	return 0;
-
-error_firstread:
-	acc->hw_working = 0;
-	dev_warn(&acc->client->dev,
-		 "Error reading WHO_AM_I: is device available/working?\n");
-	goto error1;
-error_unknown_device:
-	dev_err(&acc->client->dev,
-		"device unknown. Expected: 0x%x, Replies: 0x%x\n",
-		 WHOAMI_K2HH_ACC, buf[0]);
-error1:
-	acc->hw_initialized = 0;
-	dev_err(&acc->client->dev, "hw init error 0x%x,0x%x: %d\n", buf[0],
-			buf[1], err);
-	return err;
-}
-#else
 static int k3dh_acc_hw_init(struct k3dh_acc_data *acc)
 {
 	int err = -1;
@@ -635,7 +418,6 @@ error1:
 			buf[1], err);
 	return err;
 }
-#endif
 
 static void k3dh_acc_device_power_off(struct k3dh_acc_data *acc)
 {
@@ -667,6 +449,7 @@ static void k3dh_acc_device_power_off(struct k3dh_acc_data *acc)
 static int k3dh_acc_device_power_on(struct k3dh_acc_data *acc)
 {
 	int err = -1;
+
 	if (acc->pdata->power_on) {
 		err = acc->pdata->power_on(acc->pdata);
 		if (err < 0) {
@@ -681,12 +464,9 @@ static int k3dh_acc_device_power_on(struct k3dh_acc_data *acc)
 			enable_irq(acc->irq2);
 #endif
 	}
+
 	if (!acc->hw_initialized) {
-#ifdef K2HH_ENABLE
-		err = k2hh_acc_hw_init(acc);
-#else
 		err = k3dh_acc_hw_init(acc);
-#endif
 		if (acc->hw_working == 1 && err < 0) {
 			k3dh_acc_device_power_off(acc);
 			return err;
@@ -705,7 +485,8 @@ static int k3dh_acc_device_power_on(struct k3dh_acc_data *acc)
 		if (acc->pdata->gpio_int2 >= 0)
 			enable_irq(acc->irq2);
 #endif
-		pr_info("%s: power on: irq enabled\n", K3DH_ACC_DEV_NAME);
+		pr_info("%s: power on: irq enabled\n",
+						K3DH_ACC_DEV_NAME);
 	}
 	return 0;
 }
@@ -776,11 +557,7 @@ int k3dh_acc_update_g_range(struct k3dh_acc_data *acc, u8 new_g_range)
 	u8 updated_val;
 	u8 init_val;
 	u8 new_val;
-#ifdef K2HH_ENABLE
-	u8 mask = K3DH_ACC_FS_MASK | IF_ADD_INC;
-#else
 	u8 mask = K3DH_ACC_FS_MASK | HIGH_RESOLUTION;
-#endif
 
 	switch (new_g_range) {
 	case K3DH_ACC_G_2G:
@@ -818,11 +595,7 @@ int k3dh_acc_update_g_range(struct k3dh_acc_data *acc, u8 new_g_range)
 			goto error;
 		init_val = buf[0];
 		acc->resume_state[RES_CTRL_REG4] = init_val;
-#ifdef K2HH_ENABLE
-		new_val = new_g_range | IF_ADD_INC;
-#else
 		new_val = new_g_range | HIGH_RESOLUTION;
-#endif
 		updated_val = ((mask & new_val) | ((~mask) & init_val));
 		buf[1] = updated_val;
 		buf[0] = CTRL_REG4;
@@ -854,7 +627,7 @@ int k3dh_acc_update_odr(struct k3dh_acc_data *acc, int poll_interval_ms)
 	 *  checked from shortest to longest.  At each check, if the next lower
 	 *  ODR cannot support the current poll interval, we stop searching */
 	for (i = ARRAY_SIZE(k3dh_acc_odr_table) - 1; i >= 0; i--) {
-		if (k3dh_acc_odr_table[i].cutoff_ms <= poll_interval_ms || i == 0)
+		if (k3dh_acc_odr_table[i].cutoff_ms <= poll_interval_ms)
 			break;
 	}
 	config[1] = k3dh_acc_odr_table[i].mask;
@@ -871,11 +644,6 @@ int k3dh_acc_update_odr(struct k3dh_acc_data *acc, int poll_interval_ms)
 		acc->resume_state[RES_CTRL_REG1] = config[1];
 	}
 
-	#if DEBUG
-		pr_info("%s k3dh_acc_update_odr    mask : %d\n",
-			K3DH_ACC_DEV_NAME, k3dh_acc_odr_table[i].mask);
-	#endif
-
 	return 0;
 
 error:
@@ -884,23 +652,33 @@ error:
 
 	return err;
 }
-int k3dh_acc_get_odr(struct k3dh_acc_data *acc, unsigned char *odr)
+
+/* */
+
+static int k3dh_acc_register_write(struct k3dh_acc_data *acc, u8 *buf,
+		u8 reg_address, u8 new_value)
 {
 	int err = -1;
-	unsigned char data[2] = { 0, };
 
-#ifdef K2HH_ENABLE
-	err = k3dh_acc_register_read(acc, data, K2HH_ODR_REG);
-	if (err < 0)
-		return err;
-	data[0] = (data[0] & K2HH_ODR_MSK) >> K2HH_ODR_POS;
-#else
-	err = k3dh_acc_register_read(acc, data, K3DH_ODR_REG);
-	if (err < 0)
-		return err;
-	data[0] = (data[0] & K3DH_ODR_MSK) >> K3DH_ODR_POS;
-#endif
-	*odr = data[0];
+	if (atomic_read(&acc->enabled)) {
+		/* Sets configuration register at reg_address
+		 *  NOTE: this is a straight overwrite  */
+		buf[0] = reg_address;
+		buf[1] = new_value;
+		err = k3dh_acc_i2c_write(acc, buf, 1);
+		if (err < 0)
+			return err;
+	}
+	return err;
+}
+
+static int k3dh_acc_register_read(struct k3dh_acc_data *acc, u8 *buf,
+		u8 reg_address)
+{
+
+	int err = -1;
+	buf[0] = (reg_address);
+	err = k3dh_acc_i2c_read(acc, buf, 1);
 	return err;
 }
 
@@ -922,19 +700,16 @@ static int k3dh_acc_register_update(struct k3dh_acc_data *acc, u8 *buf,
 
 /* */
 
-static int k3dh_acc_get_acceleration_raw_data(struct k3dh_acc_data *acc,
+static int k3dh_acc_get_acceleration_data(struct k3dh_acc_data *acc,
 		int *xyz)
 {
 	int err = -1;
 	/* Data bytes from hardware xL, xH, yL, yH, zL, zH */
-	u8 acc_data[6] = { 0, };
+	u8 acc_data[6];
 	/* x,y,z hardware data */
-	s16 hw_d[3] = { 0, };
-#ifdef K2HH_ENABLE
-	acc_data[0] = (K2HH_I2C_AUTO_INCREMENT | AXISDATA_REG);
-#else
+	s16 hw_d[3] = { 0 };
+
 	acc_data[0] = (I2C_AUTO_INCREMENT | AXISDATA_REG);
-#endif
 	err = k3dh_acc_i2c_read(acc, acc_data, 6);
 	if (err < 0)
 		return err;
@@ -947,6 +722,7 @@ static int k3dh_acc_get_acceleration_raw_data(struct k3dh_acc_data *acc,
 	hw_d[1] = hw_d[1] * acc->sensitivity;
 	hw_d[2] = hw_d[2] * acc->sensitivity;
 
+
 	xyz[0] = ((acc->pdata->negate_x) ? (-hw_d[acc->pdata->axis_map_x])
 		   : (hw_d[acc->pdata->axis_map_x]));
 	xyz[1] = ((acc->pdata->negate_y) ? (-hw_d[acc->pdata->axis_map_y])
@@ -955,209 +731,11 @@ static int k3dh_acc_get_acceleration_raw_data(struct k3dh_acc_data *acc,
 		   : (hw_d[acc->pdata->axis_map_z]));
 
 	#if DEBUG
-		pr_info("%s read raw x=%d, y=%d, z=%d\n",
+		pr_info("%s read x=%d, y=%d, z=%d\n",
 			K3DH_ACC_DEV_NAME, xyz[0], xyz[1], xyz[2]);
 	#endif
 	return err;
 }
-
-static int k3dh_acc_get_acceleration_data(struct k3dh_acc_data *acc,
-		int *xyz)
-{
-
-	int err = -1;
-
-	err = k3dh_acc_get_acceleration_raw_data(acc,xyz);
-	if (err < 0) {
-		pr_info("k3dh_read_accel_xyz() failed ");
-		return err;
-	}
-
-	xyz[0] -= acc->cal_data.x;
-	xyz[1] -= acc->cal_data.y;
-	xyz[2] -= acc->cal_data.z;
-
-	#if DEBUG
-		pr_info("%s read calibrated x=%d, y=%d, z=%d\n",
-			K3DH_ACC_DEV_NAME, xyz[0], xyz[1], xyz[2]);
-	#endif
-
-	return err;
-}
-
-#ifdef K3DH_ACCEL_CALIBRATION
-static int k3dh_read_Calibration_data(struct i2c_client *client)
-{
-	int fd_offset_x, fd_offset_y, fd_offset_z;
-	char offset_x_src[5],offset_y_src[5],offset_z_src[5];
-	long offset_x,offset_y,offset_z;
-
-	struct k3dh_acc_data *k3dh = i2c_get_clientdata(client);
-
-	mm_segment_t old_fs = get_fs();
-
-	set_fs(KERNEL_DS);
-
-	memset(offset_x_src,0x00,sizeof(offset_x_src));
-	memset(offset_y_src,0x00,sizeof(offset_y_src));
-	memset(offset_z_src,0x00,sizeof(offset_z_src));
-
-	fd_offset_x = sys_open("/sns/offset_x.dat",O_RDONLY, 0);
-	fd_offset_y = sys_open("/sns/offset_y.dat",O_RDONLY, 0);
-	fd_offset_z = sys_open("/sns/offset_z.dat",O_RDONLY, 0);
-
-	if ((fd_offset_x < 0) || (fd_offset_y < 0) || (fd_offset_z < 0))
-		return -EINVAL;
-
-	if ((sys_read(fd_offset_x, offset_x_src, sizeof(offset_x_src)) < 0)
-		||	(sys_read(fd_offset_y ,offset_y_src, sizeof(offset_y_src)) <0)
-		||	(sys_read(fd_offset_z, offset_z_src, sizeof(offset_z_src)) <0 ))
-		return -EINVAL;
-
-	if ((strict_strtol(offset_x_src, 10, &offset_x))
-		||	(strict_strtol(offset_y_src, 10, &offset_y))
-		||	(strict_strtol(offset_z_src, 10, &offset_z)))
-		return -EINVAL;
-
-	if (offset_x > 1000 || offset_x < -1000
-		|| offset_y > 1000 || offset_y < -1000
-		|| offset_z > 1000 || offset_z < -1000 ){
-		dev_err(&client->dev,"Abnormal Calibration Data");
-		offset_x = 0;
-		offset_y = 0;
-		offset_z = 0;
-	}
-
-	k3dh->cal_data.x = offset_x;
-	k3dh->cal_data.y = offset_y;
-	k3dh->cal_data.z = offset_z;
-
-	sys_close(fd_offset_x);
-	sys_close(fd_offset_y);
-	sys_close(fd_offset_z);
-	set_fs(old_fs);
-
-	return 0;
-}
-
-/* Store Reserved Regitser for chip defect */
-static int k3dh_store_reserved_reg(struct device *dev)
-{
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-	int err = -1;
-	int i = 0;
-	u8 rsvd_l[7] = {0,};
-	u8 rsvd_m[4]  = {0,};
-	u8 rsvd_h[15] = {0,};
-#ifdef K2HH_ENABLE
-	rsvd_l[0] = (K2HH_I2C_AUTO_INCREMENT | 0x00 );
-	err = k3dh_acc_i2c_read(k3dh,rsvd_l,sizeof(rsvd_l));
-	if (err < 0)
-		return err;
-
-	rsvd_m[0] = (K2HH_I2C_AUTO_INCREMENT | 0x08 );
-	err = k3dh_acc_i2c_read(k3dh,rsvd_m,sizeof(rsvd_m));
-	if (err < 0)
-		return err;
-
-	rsvd_h[0] = (K2HH_I2C_AUTO_INCREMENT | 0x10 );
-	err = k3dh_acc_i2c_read(k3dh,rsvd_h, sizeof(rsvd_h));
-	if (err < 0)
-		return err;
-#else
-	rsvd_l[0] = (I2C_AUTO_INCREMENT | 0x00 );
-	err = k3dh_acc_i2c_read(k3dh,rsvd_l,sizeof(rsvd_l));
-	if (err < 0)
-		return err;
-
-	rsvd_m[0] = (I2C_AUTO_INCREMENT | 0x08 );
-	err = k3dh_acc_i2c_read(k3dh,rsvd_m,sizeof(rsvd_m));
-	if (err < 0)
-		return err;
-
-	rsvd_h[0] = (I2C_AUTO_INCREMENT | 0x10 );
-	err = k3dh_acc_i2c_read(k3dh,rsvd_h, sizeof(rsvd_h));
-	if (err < 0)
-		return err;
-#endif
-	for(i = 0 ; i < sizeof(rsvd_l) ; i++)
-	{
-		dev_err(dev, "Reserved Regitser(0x0%x) %x", i, rsvd_l[i]);
-	}
-	for(i = 0 ; i < sizeof(rsvd_m) ; i++)
-	{
-		dev_err(dev, "Reserved Regitser(0x0%x) %x", i+8, rsvd_m[i]);
-	}
-	for(i = 0 ; i < sizeof(rsvd_h) ; i++)
-	{
-		dev_err(dev, "Reserved Regitser(0x%x) %x", i+16, rsvd_h[i]);
-	}
-	return err;
-}
-
-static int k3dh_store_Calibration_data(struct device *dev)
-{
-	unsigned char offset_x_src[5],offset_y_src[5],offset_z_src[5];
-	int fd_offset_x, fd_offset_y, fd_offset_z;
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-	mm_segment_t old_fs = get_fs();
-
-	set_fs(KERNEL_DS);
-
-	memset(offset_x_src,0x00,sizeof(offset_x_src));
-	memset(offset_y_src,0x00,sizeof(offset_y_src));
-	memset(offset_z_src,0x00,sizeof(offset_z_src));
-
-	fd_offset_x = sys_open("/sns/offset_x.dat",O_WRONLY|O_CREAT, 0666);
-	fd_offset_y = sys_open("/sns/offset_y.dat",O_WRONLY|O_CREAT, 0666);
-	fd_offset_z = sys_open("/sns/offset_z.dat",O_WRONLY|O_CREAT, 0666);
-
-#ifdef DEBUG
-	dev_info(dev, "[fd_offset_x] writing %d", fd_offset_x);
-	dev_info(dev, "[fd_offset_y] writing %d", fd_offset_y );
-	dev_info(dev, "[fd_offset_z] writing %d", fd_offset_z);
-#endif
-
-	if ((fd_offset_x < 0) || (fd_offset_y < 0) || (fd_offset_z < 0))
-		return -EINVAL;
-
-	sprintf(offset_x_src, "%d", k3dh->cal_data.x);
-	sprintf(offset_y_src, "%d", k3dh->cal_data.y);
-	sprintf(offset_z_src, "%d", k3dh->cal_data.z);
-
-#ifdef DEBUG
-	dev_info(dev, "[offset_x] writing %s", offset_x_src);
-	dev_info(dev, "[offset_y] writing %s", offset_y_src);
-	dev_info(dev, "[offset_z] writing %s", offset_z_src);
-#endif
-
-	if ((sys_write(fd_offset_x, offset_x_src, sizeof(offset_x_src)) < 0)
-			||	(sys_write(fd_offset_y, offset_y_src,  sizeof(offset_y_src)) < 0)
-				||	(sys_write(fd_offset_z, offset_z_src,  sizeof(offset_z_src)) < 0))
-		return -EINVAL;
-
-	atomic_set(&k3dh->fast_calib_rslt, 1);
-
-	sys_fsync(fd_offset_x);
-	sys_fsync(fd_offset_y);
-	sys_fsync(fd_offset_z);
-
-	sys_close(fd_offset_x);
-	sys_close(fd_offset_y);
-	sys_close(fd_offset_z);
-        sys_chmod("/sns/offset_x.dat", 0664);
-        sys_chmod("/sns/offset_y.dat", 0664);
-        sys_chmod("/sns/offset_z.dat", 0664);
-	set_fs(old_fs);
-
-#ifdef DEBUG
-	dev_info(dev, "[CLOSE FILE]!!!!! ");
-#endif
-
-	return 0;
-}
-
-#endif
 
 static void k3dh_acc_report_values(struct k3dh_acc_data *acc, int *xyz)
 {
@@ -1170,15 +748,7 @@ static void k3dh_acc_report_values(struct k3dh_acc_data *acc, int *xyz)
 static int k3dh_acc_enable(struct k3dh_acc_data *acc)
 {
 	int err;
-	pr_info("cal_data.bCalLoaded = %d",acc->cal_data.bCalLoaded);
-	/* Let sensor know that calibration data needs to be loaded */
-	if( !(acc->cal_data.bCalLoaded ) ) {
-		err = k3dh_read_Calibration_data(acc->client);
-		if (err)
-			pr_info("k3dh Calibration data is not found");
-		else
-			acc->cal_data.bCalLoaded = 1;
-	}
+
 	if (!atomic_cmpxchg(&acc->enabled, 0, 1)) {
 		err = k3dh_acc_device_power_on(acc);
 		if (err < 0) {
@@ -1214,208 +784,18 @@ static int k3dh_acc_misc_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-/* for K2HH */
-#define K2HH_SELF_TEST_2G_MAX_LSB	(24576)
-#define K2HH_SELF_TEST_2G_MIN_LSB	(1146)
-/* end for K2HH */
-
 #define SELF_TEST_2G_MAX_LSB	(360)
 #define SELF_TEST_2G_MIN_LSB	(17)
 #define TESTLIMIT_XY			(175)
 #define TESTLIMIT_Z_USL_LSB		(1270)
 #define TESTLIMIT_Z_LSL_LSB		(778)
 
-#ifdef K2HH_ENABLE
-static int k2hh_acc_get_selftest(struct k3dh_acc_data *stat, char *buf)
-{
-	int val, i, en_state = 0;
-
-	u8 x[8] = {0, };
-	s32 NO_ST[3] = {0, 0, 0};
-	s32 NO_ST_ZOFF[3] = {0, 0, 0};
-	s32 ST[3] = {0, 0, 0};
-/*	s16 tmp = 0; */
-	en_state = atomic_read(&stat->enabled);
-
-	k3dh_acc_disable(stat);
-	k3dh_acc_device_power_on(stat);
-
-	x[0] = CTRL_REG1;
-	x[1] = 0xC7;
-	k3dh_acc_i2c_write(stat, x, 1);
-
-	x[0] = (K2HH_I2C_AUTO_INCREMENT | CTRL_REG4);
-	x[1] = 0x04;
-	x[2] = 0x00;
-	x[3] = 0x00;
-	k3dh_acc_i2c_write(stat, x, 3);
-
-	mdelay(80);
-
-	x[0] = (K2HH_I2C_AUTO_INCREMENT | AXISDATA_REG);
-	k3dh_acc_i2c_read(stat, x, 6);
-
-	for (i = 0; i < 5; i++) {
-		while (1) {
-			x[0] = 0x27; /*status_reg */
-			val = k3dh_acc_i2c_read(stat, x, 1);
-			if (val < 0) {
-				pr_info("%s: I2C fail during self-test\n", __func__);
-				goto ST_EXIT;
-			}
-
-			if (x[0] & 0x08)
-				break;
-		}
-
-		x[0] = (K2HH_I2C_AUTO_INCREMENT | AXISDATA_REG);
-		k3dh_acc_i2c_read(stat, x, 6);
-
-		/* 12 bit resolution 1LSB= 0.997mg */
-		NO_ST_ZOFF[0] += (((s16) ((x[1] << 8) | x[0])) >> 4);
-		NO_ST_ZOFF[1] += (((s16) ((x[3] << 8) | x[2])) >> 4);
-		NO_ST_ZOFF[2] += (((s16) ((x[5] << 8) | x[4])) >> 4);
-
-       /* 16 bit resolution 1LSB=0.061mg */
-		NO_ST[0] += (s16)(x[1] << 8 | x[0]);
-		NO_ST[1] += (s16)(x[3] << 8 | x[2]);
-		NO_ST[2] += (s16)(x[5] << 8 | x[4]);
-
-
-#if DEBUG
-		pr_info("%s-NO_ST(%d): %d, %d, %d\n",
-			 K3DH_ACC_DEV_NAME, i, NO_ST[0], NO_ST[1], NO_ST[2]);
-#endif
-	}
-
-		NO_ST_ZOFF[0] /= 5;
-		NO_ST_ZOFF[1] /= 5;
-		NO_ST_ZOFF[2] /= 5;
-
-		NO_ST[0] /= 5;
-		NO_ST[1] /= 5;
-		NO_ST[2] /= 5;
-
-#if DEBUG
-	pr_info("%s:AVE_NO_ST: %d, %d, %d\n", K3DH_ACC_DEV_NAME, NO_ST[0], NO_ST[1], NO_ST[2]);
-#endif
-
-	x[0] = CTRL_REG5;
-	x[1] = 0x04; /* ST enable */
-	k3dh_acc_i2c_write(stat, x, 1);
-
-	mdelay(80);
-
-	x[0] = (K2HH_I2C_AUTO_INCREMENT | AXISDATA_REG);
-	k3dh_acc_i2c_read(stat, x, 6);
-
-	for (i = 0; i < 5; i++) {
-		while (1) {
-			x[0] = 0x27;
-			val = k3dh_acc_i2c_read(stat, x, 1);
-
-			if (val < 0) {
-				pr_info("%s: I2C fail during self-test\n", __func__);
-				goto ST_EXIT;
-			}
-
-			if (x[0] & 0x08)
-				break;
-		}
-
-		x[0] = (K2HH_I2C_AUTO_INCREMENT | AXISDATA_REG);
-		k3dh_acc_i2c_read(stat, x, 6);
-
-        /* 16 bit resolution */
-		ST[0] += (s16)(x[1] << 8 | x[0]);
-		ST[1] += (s16)(x[3] << 8 | x[2]);
-		ST[2] += (s16)(x[5] << 8 | x[4]);
-
-#if DEBUG
-		pr_info("%s-ST(%d): %d, %d, %d\n",
-			K3DH_ACC_DEV_NAME, i, ST[0], ST[1], ST[2]);
-#endif
-
-	}
-	ST[0] /= 5;
-	ST[1] /= 5;
-	ST[2] /= 5;
-
-
-#if DEBUG
-		pr_info("%s:AVE_ST: %d, %d, %d\n",
-			K3DH_ACC_DEV_NAME, ST[0], ST[1], ST[2]);
-#endif
-
-	for (val = -1, i = 0; i < 3; i++) {
-		ST[i] -= NO_ST[i];
-		ST[i] = abs(ST[i]);
-
-		if ((K2HH_SELF_TEST_2G_MIN_LSB > ST[i]) || (ST[i] > K2HH_SELF_TEST_2G_MAX_LSB)) {
-			pr_info("%s: ST[%d]: Out of range!! (%d)\n",
-				K3DH_ACC_DEV_NAME, i, ST[i]);
-			val = 0;
-		}
-	}
-
-	/* Check zero-g offset */
-	if (val >= 0) {
-		for (val = 1, i = 0; i < 3; i++) {
-			if (i < 2) {
-				if (abs(NO_ST_ZOFF[i]) > TESTLIMIT_XY) {
-					pr_info("%s: NO_ST[%d]: Out of ZOffset!! (%d)\n",
-						K3DH_ACC_DEV_NAME, i, NO_ST_ZOFF[i]);
-					val = -1;
-				}
-			} else {
-				if (NO_ST_ZOFF[i] > TESTLIMIT_Z_USL_LSB
-					|| NO_ST_ZOFF[i] < TESTLIMIT_Z_LSL_LSB) {
-					pr_info("%s: NO_ST[%d]: Out of ZOffset!! (%d)\n",
-						K3DH_ACC_DEV_NAME, i, NO_ST[i]);
-					val = -1;
-				}
-			}
-		}
-	}
-
-#if DEBUG
-	if (val) {
-		pr_info("%s-%d: Self Test: OK!! (%d, %d, %d) ||| (%d, %d, %d)\n",
-			K3DH_ACC_DEV_NAME, val, ST[0], ST[1], ST[2],
-			 NO_ST_ZOFF[0], NO_ST_ZOFF[1], NO_ST_ZOFF[2]);
-	} else {
-		pr_info("%s-%d: Self Test: NG!! (%d, %d, %d) ||| (%d, %d, %d)\n",
-			K3DH_ACC_DEV_NAME, val, ST[0], ST[1], ST[2],
-			 NO_ST_ZOFF[0], NO_ST_ZOFF[1], NO_ST_ZOFF[2]);
-	}
-#endif
-
-ST_EXIT:
-	x[0] = CTRL_REG1;
-	x[1] = 0x00;	/* power down */
-
-	k3dh_acc_i2c_write(stat, x, 1);
-
-	x[0] = CTRL_REG5;
-	x[1] = 0x00;	/* ST disable */
-
-	k3dh_acc_i2c_write(stat, x, 1);
-
-	k3dh_acc_device_power_off(stat);
-
-	if (en_state)
-		k3dh_acc_enable(stat);
-
-	return val;
-}
-
-#else
 
 static int k3dh_acc_get_selftest(struct k3dh_acc_data *stat, char *buf)
 {
 	int val, i, en_state = 0;
 
-	u8 x[8] = {0, };
+	u8 x[8];
 	s32 NO_ST[3] = {0, 0, 0};
 	s32 NO_ST_ZOFF[3] = {0, 0, 0};
 	s32 ST[3] = {0, 0, 0};
@@ -1593,96 +973,6 @@ ST_EXIT:
 	return val;
 }
 
-#endif
-
-static int k3dh_acc_get_mode(struct i2c_client *client, unsigned char *mode)
-{
-	int err = 0;
-	unsigned char data[2] = { 0, };
-	unsigned char LPen = 0;
-	unsigned char HR = 0;
-
-	struct k3dh_acc_data *k3dh = i2c_get_clientdata(client);
-#ifdef K2HH_ENABLE
-	LPen = 0;
-    err = k3dh_acc_register_read(k3dh, data, K2HH_HR_REG);
-    if (err < 0)
-	       return err;
-    HR = (data[0] & K2HH_HR_MSK) ? 1 : 0;
-#else
-	err = k3dh_acc_register_read(k3dh, data, K3DH_LP_EN_REG);
-	if (err < 0)
-		return err;
-	LPen = (data[0]& K3DH_LP_EN_MSK)?1:0;
-    err = k3dh_acc_register_read(k3dh, data, K3DH_HR_REG);
-    if (err < 0)
-	       return err;
-    HR = (data[0] & K3DH_HR_MSK) ? 1 : 0;
-#endif
-
-    if (LPen == 1 && HR == 0) {
-        *mode = K3DH_MODE_LOWPOWER;
-    }
-    else if (LPen == 0 && HR == 0) {
-        *mode = K3DH_MODE_NORMAL;
-    }
-    else if (LPen == 0 && HR == 1) {
-        *mode = K3DH_MODE_HIGH_RESOLUTION;
-    }
-    else {
-        *mode = -1;
-    }
-
-	pr_info("k3dh_acc_get_mode, LPen : %d, HR : %d\n",LPen,HR);
-
-	return err;
-}
-
-static int k3dh_acc_set_mode(struct i2c_client *client, unsigned char mode)
-{
-	int err = -1;
-	unsigned char data[2] ={0, 0};
-    unsigned char LPen = 0;
-    unsigned char HR = 0;
-	struct k3dh_acc_data *k3dh = i2c_get_clientdata(client);
-
-    if((client == NULL) || (mode >= 3)) {
-        return -1;
-    }
-
-    switch(mode) {
-        case K3DH_MODE_LOWPOWER :
-            LPen = 1;
-            HR = 0;
-            break;
-        case K3DH_MODE_NORMAL:
-            LPen = 0;
-            HR =  0;
-            break;
-        case K3DH_MODE_HIGH_RESOLUTION :
-            LPen = 0;
-            HR = 1;
-            break;
-        default :
-            break;
-    }
-#ifdef K2HH_ENABLE
-    err = k3dh_acc_register_update(k3dh, (u8 *) data, K2HH_HR_REG, K2HH_HR_MSK, HR << K2HH_HR_POS);
-    if (err < 0)
-		return err;
-#else
-    err = k3dh_acc_register_update(k3dh, (u8 *) data, K3DH_LP_EN_REG, K3DH_LP_EN_MSK, LPen << K3DH_LP_EN_POS);
-    if (err < 0)
-		return err;
-
-	err = k3dh_acc_register_update(k3dh, (u8 *) data, K3DH_HR_REG, K3DH_HR_MSK, HR << K3DH_HR_POS);
-	if (err < 0)
-		return err;
-#endif
-	pr_info("k3dh_set_mode, mode : %d, LPen : %d, HR : %d\n", mode, LPen, HR);
-	return 0;
-}
-
 static long k3dh_acc_misc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
@@ -1701,11 +991,8 @@ static long k3dh_acc_misc_ioctl(struct file *file, unsigned int cmd, unsigned lo
 
 	switch (cmd) {
 	case K3DH_ACC_IOCTL_GET_SELFTEST:
-#ifdef K2HH_ENABLE
-		err = k2hh_acc_get_selftest(acc, buf_error);
-#else
 		err = k3dh_acc_get_selftest(acc, buf_error);
-#endif
+
 		if (copy_to_user(argp, &err, sizeof(err)))
 			return -EINVAL;
 
@@ -2103,14 +1390,12 @@ static int k3dh_acc_input_init(struct k3dh_acc_data *acc)
 	input_set_abs_params(acc->input_dev, ABS_WHEEL, INT_MIN, INT_MAX, 0, 0);
 
 	acc->input_dev->name = "accelerometer";
-	acc->input_dev->uniq = "k3dh";
 
 	err = input_register_device(acc->input_dev);
 	if (err) {
 		dev_err(&acc->client->dev,
-				"unable to register input polled device %s %s\n",
-				acc->input_dev->name,
-				acc->input_dev->uniq);
+				"unable to register input polled device %s\n",
+				acc->input_dev->name);
 		goto err1;
 	}
 
@@ -2130,7 +1415,6 @@ int k3dh_power(struct k3dh_acc_platform_data *pdata, int on)
 		ret = regulator_enable(pdata->vdd_supply);
 		ret += regulator_enable(pdata->vcc_i2c_supply);
 		pr_info("k3dh power on [status : %d ]\n", ret);
-		mdelay(20);
 	} else {
 		ret = regulator_disable(pdata->vdd_supply);
 		ret += regulator_disable(pdata->vcc_i2c_supply);
@@ -2158,72 +1442,20 @@ int k3dh_power_off(struct k3dh_acc_platform_data *pdata)
 static int k3dh_parse_dt(struct device *dev, struct k3dh_acc_platform_data *pdata)
 {
 	int rc;
-	int ret, err = 0;
 	struct device_node *np = dev->of_node;
 
-	struct sensor_dt_to_pdata_map *itr;
-	struct sensor_dt_to_pdata_map map[] = {
-	{"st,gpio-int",		&pdata->gpio_int1,		DT_REQUIRED,		DT_GPIO, 	0},
-#ifdef USE_ACC_IRQ2
-	{"st_gpio_int2",	&pdata->gpio_int2,		DT_REQUIRED,		DT_GPIO, 	0},
-#endif
-	{"g_range",			&pdata->g_range,		DT_SUGGESTED,		DT_U32,		0},
-	{"axis_map_x",		&pdata->axis_map_x,		DT_SUGGESTED,		DT_U32,		0},
-	{"axis_map_y",		&pdata->axis_map_y,		DT_SUGGESTED,		DT_U32,		0},
-	{"axis_map_z",		&pdata->axis_map_z,		DT_SUGGESTED,		DT_U32,		0},
-	{"negate_x",		&pdata->negate_x,		DT_SUGGESTED,		DT_U32,		0},
-	{"negate_y",		&pdata->negate_y,		DT_SUGGESTED,		DT_U32,		0},
-	{"negate_z",		&pdata->negate_z,		DT_SUGGESTED,		DT_U32,		0},
-	{"poll_interval",	&pdata->poll_interval,	DT_SUGGESTED,		DT_U32,		0},
-	{"min_interval",	&pdata->min_interval,	DT_SUGGESTED,		DT_U32,		0},
-	{NULL,				NULL,				 	0, 					0, 	 		0},
-	};
+	/* irq gpio info */
+	pdata->gpio_int1 = of_get_named_gpio_flags(np, "st,gpio-int",
+			0, &pdata->gpio_int1);
+	dev_info(dev, "parse_dt data [k3dh:gpio_int  = %d]\n", pdata->gpio_int1);
 
-	for (itr = map; itr->dt_name ; ++itr) {
-		switch (itr->type) {
-		case DT_GPIO:
-			ret = of_get_named_gpio(np, itr->dt_name, 0);
-			if (ret >= 0) {
-				*((int *) itr->ptr_data) = ret;
-				ret = 0;
-			}
-			break;
-		case DT_U32:
-			ret = of_property_read_u32(np, itr->dt_name,
-							 (u32 *) itr->ptr_data);
-			break;
-		case DT_BOOL:
-			*((bool *) itr->ptr_data) =
-				of_property_read_bool(np, itr->dt_name);
-			ret = 0;
-			break;
-		default:
-			dev_err(dev,"%d is an unknown DT entry type\n",itr->type);
-			ret = -EBADE;
-		}
-
-		dev_info(dev,"DT entry ret:%d name:%s val:%d\n",
-					ret,itr->dt_name, *((int *)itr->ptr_data));
-
-		if (ret) {
-			*((int *)itr->ptr_data) = itr->default_val;
-
-			if (itr->status < DT_OPTIONAL) {
-				dev_err(dev,"Missing '%s' DT entry\n",itr->dt_name);
-				/* cont on err to dump all missing entries */
-				if (itr->status == DT_REQUIRED && !err)
-					err = ret;
-			}
-		}
-	}
-
-	pdata->vdd_supply = regulator_get(dev, "stm,sensor_vdd");
+	pdata->vdd_supply = regulator_get(dev, "sensor_vdd");
 	if (IS_ERR(pdata->vdd_supply)) {
 		rc = PTR_ERR(pdata->vdd_supply);
 		dev_err(dev, "Regulator get failed sensor_vdd-supply rc=%d\n", rc);
 		return rc;
 	}
-	pdata->vcc_i2c_supply = regulator_get(dev, "stm,sensor_vcc_i2c");
+	pdata->vcc_i2c_supply = regulator_get(dev, "sensor_vcc_i2c");
 	if (IS_ERR(pdata->vcc_i2c_supply)) {
 		rc = PTR_ERR(pdata->vcc_i2c_supply);
 		dev_err(dev, "Regulator get failed vcc_i2c_supply rc=%d\n", rc);
@@ -2259,8 +1491,9 @@ static int k3dh_pinctrl_init(struct k3dh_acc_data *data)
 		data->k3dh_pinctrl = NULL;
 		return retval;
 	}
+
 	data->gpio_state_active
-		= pinctrl_lookup_state(data->k3dh_pinctrl, "k2dh_int_active");
+		= pinctrl_lookup_state(data->k3dh_pinctrl, "k2dh_active");
 	if (IS_ERR_OR_NULL(data->gpio_state_active)) {
 		dev_dbg(&data->client->dev,
 			"Can not get ts default pinstate\n");
@@ -2268,8 +1501,9 @@ static int k3dh_pinctrl_init(struct k3dh_acc_data *data)
 		data->k3dh_pinctrl = NULL;
 		return retval;
 	}
+
 	data->gpio_state_suspend
-		= pinctrl_lookup_state(data->k3dh_pinctrl, "k2dh_int_suspend");
+		= pinctrl_lookup_state(data->k3dh_pinctrl, "k2dh_suspend");
 	if (IS_ERR_OR_NULL(data->gpio_state_suspend)) {
 		dev_dbg(&data->client->dev,
 			"Can not get ts sleep pinstate\n");
@@ -2277,6 +1511,7 @@ static int k3dh_pinctrl_init(struct k3dh_acc_data *data)
 		data->k3dh_pinctrl = NULL;
 		return retval;
 	}
+
 	return 0;
 }
 
@@ -2285,7 +1520,7 @@ static int k3dh_pinctrl_select(struct k3dh_acc_data *data, bool on)
 	struct pinctrl_state *pins_state;
 	int ret;
 
-	dev_err(&data->client->dev,"k3dh_pinctrl_select call\n");
+	dev_err("k3dh_pinctrl_select call\n");
 	pins_state = on ? data->gpio_state_active : data->gpio_state_suspend;
 	if (!IS_ERR_OR_NULL(pins_state)) {
 		ret = pinctrl_select_state(data->k3dh_pinctrl, pins_state);
@@ -2322,439 +1557,6 @@ static int k3dh_gpio_config(struct k3dh_acc_data *data)
 	}
 	return ret;
 }
-
-static int k3dh_do_calibration(struct device *dev, char *axis)
-{
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-	unsigned int timeout_shaking = 0;
-	int acc_cal_pre[3] = { 0, };
-	int acc_cal[3] = { 0, };
-	int sum[3] = { 0, };
-
-	k3dh_acc_get_acceleration_raw_data(k3dh, acc_cal_pre);
-	do{
-		mdelay(20);
-		k3dh_acc_get_acceleration_raw_data(k3dh, acc_cal);
-		dev_info(dev, "===============moved %s =============== timeout = %d", axis, timeout_shaking);
-		dev_info(dev, "(%d, %d, %d) (%d, %d, %d)", acc_cal_pre[K3DH_AXIS_X], acc_cal_pre[K3DH_AXIS_Y], acc_cal_pre[K3DH_AXIS_Z], acc_cal[K3DH_AXIS_X], acc_cal[K3DH_AXIS_Y], acc_cal[K3DH_AXIS_Z]);
-
-		if((abs(acc_cal[K3DH_AXIS_X] - acc_cal_pre[K3DH_AXIS_X]) > K3DH_SHAKING_DETECT_THRESHOLD)
-			|| (abs((acc_cal[K3DH_AXIS_Y] - acc_cal_pre[K3DH_AXIS_Y])) > K3DH_SHAKING_DETECT_THRESHOLD)
-			|| (abs((acc_cal[K3DH_AXIS_Z] - acc_cal_pre[K3DH_AXIS_Z])) > K3DH_SHAKING_DETECT_THRESHOLD)){
-				atomic_set(&k3dh->fast_calib_rslt, 0);
-				dev_info(dev, "===============shaking %s ===============", axis);
-				return -EINVAL;
-		}
-		else {
-			sum[K3DH_AXIS_X] += acc_cal[K3DH_AXIS_X];
-			sum[K3DH_AXIS_Y] += acc_cal[K3DH_AXIS_Y];
-			sum[K3DH_AXIS_Z] += acc_cal[K3DH_AXIS_Z];
-
-			acc_cal_pre[K3DH_AXIS_X] = acc_cal[K3DH_AXIS_X];
-			acc_cal_pre[K3DH_AXIS_Y] = acc_cal[K3DH_AXIS_Y];
-			acc_cal_pre[K3DH_AXIS_Z] = acc_cal[K3DH_AXIS_Z];
-		}
-			timeout_shaking++;
-	}while(timeout_shaking < CALIBRATION_DATA_AMOUNT);
-	dev_info(dev, "===============complete shaking %s check===============", axis);
-
-	/* check zero-g offset */
-	if ((abs(sum[K3DH_AXIS_X]/CALIBRATION_DATA_AMOUNT) >TESTLIMIT_XY) ||
-		(abs(sum[K3DH_AXIS_Y]/CALIBRATION_DATA_AMOUNT) >TESTLIMIT_XY) ||
-		 ((abs(sum[K3DH_AXIS_Z]/CALIBRATION_DATA_AMOUNT) > TESTLIMIT_Z_USL_LSB) || (abs(sum[K3DH_AXIS_Z]/CALIBRATION_DATA_AMOUNT) < TESTLIMIT_Z_LSL_LSB))) {
-			dev_err(dev, "Calibration zero-g offset check failed (%d, %d, %d)\n",
-					sum[K3DH_AXIS_X]/CALIBRATION_DATA_AMOUNT, sum[K3DH_AXIS_Y]/CALIBRATION_DATA_AMOUNT, sum[K3DH_AXIS_Z]/CALIBRATION_DATA_AMOUNT);
-			atomic_set(&k3dh->fast_calib_rslt, 0);
-			if (k3dh_store_reserved_reg(dev) < 0)
-				dev_err(dev,"Reserved register store error");
-
-			return -EINVAL;
-	}
-
-	k3dh->cal_data.x = sum[0] / CALIBRATION_DATA_AMOUNT;  /* K3DH(12bit) 0+-154 */
-	k3dh->cal_data.y = sum[1] / CALIBRATION_DATA_AMOUNT;  /* K3DH(12bit) 0+-154 */
-
-	if (sum[2] >= 0) {
-		k3dh->cal_data.z = (sum[2] / CALIBRATION_DATA_AMOUNT) - 1024; /* K3DH(12bit) 1024 +-226 */
-	} else {
-		k3dh->cal_data.z = (sum[2] / CALIBRATION_DATA_AMOUNT) + 1024; /* K3DH(12bit) 1024 +-226 */
-	}
-
-	dev_info(dev, "=============== %s fast calibration finished===============", axis);
-
-	return 0;
-}
-
-static ssize_t k3dh_enable_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	return sprintf(buf, "%d\n", atomic_read(&k3dh->enabled));
-}
-
-
-static ssize_t k3dh_enable_store(struct device *dev,struct device_attribute *attr, const char *buf, size_t size)
-{
-	unsigned long onoff;
-	int error;
-    struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-	error = strict_strtoul(buf, 10, &onoff);
-	if (error)
-		return error;
-
-	if (onoff == 0)
-		k3dh_acc_disable(k3dh);
-	else if (onoff == 1)
-		k3dh_acc_enable(k3dh);
-
-	return size;
-}
-
-/* See CTRL_REG1(20h) register ODR<3:0> data rate configuration table at datasheet*/
-static ssize_t k3dh_delay_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	unsigned char delay = 0;
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	if (k3dh_acc_get_odr(k3dh, &delay) < 0)
-		return sprintf(buf, "Read error\n");
-	else
-		return sprintf(buf,"%d\n",delay);
-}
-
-
-static ssize_t k3dh_delay_store(struct device *dev,struct device_attribute *attr, const char *buf, size_t size)
-{
-	unsigned long data = 0;
-	int error;
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	error = strict_strtoul(buf, 10, &data);
-	if (error)
-		return error;
-	if (k3dh_acc_update_odr(k3dh,data) < 0)
-		pr_info("invalid content '%s', length = %d\n",buf,size);
-
-	return size;
-}
-
-static ssize_t k3dh_sensor_cal_data_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	int xyz[3] = { 0, };
-	int err = 0;
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	err = k3dh_acc_get_acceleration_data(k3dh,xyz);
-	if (err < 0)
-		return sprintf(buf, "Read Calibrated Data failed");
-
-	return sprintf(buf, "Read Calibrated Data x=%d y=%d z=%d \n", xyz[K3DH_AXIS_X], xyz[K3DH_AXIS_Y], xyz[K3DH_AXIS_Z]);
-}
-
-static ssize_t k3dh_sensor_raw_data_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	int xyz[3] = { 0, };
-	int err = 0;
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	err = k3dh_acc_get_acceleration_raw_data(k3dh,xyz);
-	if (err < 0)
-		return sprintf(buf, "Read Calibrated Data failed");
-
-	return sprintf(buf, "Read Raw Data x=%d y=%d z=%d \n", xyz[K3DH_AXIS_X], xyz[K3DH_AXIS_Y], xyz[K3DH_AXIS_Z]);
-}
-
-static ssize_t k3dh_opmode_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	unsigned char data = 0;
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	if (k3dh_acc_get_mode(k3dh->client, &data) < 0) {
-		return sprintf(buf,"Read error\n");
-	} else {
-		if (data == 0)
-			return sprintf(buf, "0:LP MODE\n");
-		else if (data == 1)
-			return sprintf(buf, "1:Normal MODE\n");
-		else if (data == 2)
-			return sprintf(buf, "2:HR MODE\n");
-		else
-			return sprintf(buf, "Error\n");
-	}
-}
-
-static ssize_t k3dh_opmode_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
-{
-	unsigned long data = 0;
-	int error = -1;
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	error = strict_strtoul(buf, 10, &data);
-	if (error)
-		return error;
-	if (k3dh_acc_set_mode(k3dh->client, (unsigned char) data) < 0)
-		pr_info("invalid content '%s', length = %d\n",buf,size);
-
-	return size;
-}
-
-static ssize_t k3dh_selftest_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	return sprintf(buf,"%s\n",atomic_read(&k3dh->selftest_rslt) ? "Pass" : "Fail");
-}
-
-static ssize_t k3dh_selftest_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
-{
-	unsigned long data = 0;
-	int error = -1;
-	u8 buf_error[50];
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	error = strict_strtoul(buf, 10, &data);
-	if (error)
-		return error;
-
-	if(data == 1) {
-#ifdef K2HH_ENABLE
-		if(k2hh_acc_get_selftest(k3dh,buf_error))
-#else
-		if(k3dh_acc_get_selftest(k3dh,buf_error))
-#endif
-			atomic_set(&k3dh->selftest_rslt, 1);
-		else
-			atomic_set(&k3dh->selftest_rslt, 0);
-	}
-	else {
-			pr_info("Selftest is failed\n");
-			return -EINVAL;
-	}
-
-	return size;
-}
-
-static ssize_t k3dh_fast_calibration_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	return sprintf(buf, "%d\n", atomic_read(&k3dh->fast_calib_rslt));
-}
-
-static ssize_t k3dh_fast_calibration_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-	unsigned int timeout_shaking = 0;
-	unsigned long data;
-	int acc_cal_pre[3] = { 0, };
-	int acc_cal[3] = { 0, };
-	int sum[3] = { 0, };
-	int error = 0;
-
-	atomic_set(&k3dh->fast_calib_rslt, 0);
-
-	error = strict_strtoul(buf, 10, &data);
-	if (error)
-		return error;
-
-	k3dh_acc_get_acceleration_raw_data(k3dh, acc_cal_pre);
-	do{
-		mdelay(20);
-		k3dh_acc_get_acceleration_raw_data(k3dh, acc_cal);
-		dev_info(dev, "===============moved x,y,z=============== timeout = %d",timeout_shaking);
-		dev_info(dev, "(%d, %d, %d) (%d, %d, %d)", acc_cal_pre[K3DH_AXIS_X], acc_cal_pre[K3DH_AXIS_Y], acc_cal_pre[K3DH_AXIS_Z], acc_cal[K3DH_AXIS_X], acc_cal[K3DH_AXIS_Y], acc_cal[K3DH_AXIS_Z]);
-
-		if((abs(acc_cal[K3DH_AXIS_X] - acc_cal_pre[K3DH_AXIS_X]) > K3DH_SHAKING_DETECT_THRESHOLD)
-			|| (abs((acc_cal[K3DH_AXIS_Y] - acc_cal_pre[K3DH_AXIS_Y])) > K3DH_SHAKING_DETECT_THRESHOLD)
-			|| (abs((acc_cal[K3DH_AXIS_Z] - acc_cal_pre[K3DH_AXIS_Z])) > K3DH_SHAKING_DETECT_THRESHOLD)){
-				atomic_set(&k3dh->fast_calib_rslt, 0);
-				dev_info(dev, "===============shaking x,y,z===============");
-				return -EINVAL;
-		} else {
-			sum[K3DH_AXIS_X] += acc_cal[K3DH_AXIS_X];
-			sum[K3DH_AXIS_Y] += acc_cal[K3DH_AXIS_Y];
-			sum[K3DH_AXIS_Z] += acc_cal[K3DH_AXIS_Z];
-
-			acc_cal_pre[K3DH_AXIS_X] = acc_cal[K3DH_AXIS_X];
-			acc_cal_pre[K3DH_AXIS_Y] = acc_cal[K3DH_AXIS_Y];
-			acc_cal_pre[K3DH_AXIS_Z] = acc_cal[K3DH_AXIS_Z];
-		}
-			timeout_shaking++;
-	}while(timeout_shaking < CALIBRATION_DATA_AMOUNT);
-	dev_info(dev, "===============complete shaking x,y,z check===============");
-
-	/* check zero-g offset */
-	if ((abs(sum[K3DH_AXIS_X]/CALIBRATION_DATA_AMOUNT) >TESTLIMIT_XY) ||
-		(abs(sum[K3DH_AXIS_Y]/CALIBRATION_DATA_AMOUNT) >TESTLIMIT_XY) ||
-		 ((abs(sum[K3DH_AXIS_Z]/CALIBRATION_DATA_AMOUNT) > TESTLIMIT_Z_USL_LSB) || (abs(sum[K3DH_AXIS_Z]/CALIBRATION_DATA_AMOUNT) < TESTLIMIT_Z_LSL_LSB))) {
-			dev_err(dev, "Calibration zero-g offset check failed (%d, %d, %d)\n",
-					sum[K3DH_AXIS_X]/CALIBRATION_DATA_AMOUNT, sum[K3DH_AXIS_Y]/CALIBRATION_DATA_AMOUNT, sum[K3DH_AXIS_Z]/CALIBRATION_DATA_AMOUNT);
-			atomic_set(&k3dh->fast_calib_rslt, 0);
-			if (k3dh_store_reserved_reg(dev) < 0)
-				dev_err(dev,"Reserved register store error");
-
-			return -EINVAL;
-	}
-
-	k3dh->cal_data.x = sum[0] / CALIBRATION_DATA_AMOUNT;  /* K3DH(12bit) 0+-154 */
-	k3dh->cal_data.y = sum[1] / CALIBRATION_DATA_AMOUNT;  /* K3DH(12bit) 0+-154 */
-
-	if (sum[2] >= 0) {
-		k3dh->cal_data.z = (sum[2] / CALIBRATION_DATA_AMOUNT) - 1024; /* K3DH(12bit) 1024 +-226 */
-	} else {
-		k3dh->cal_data.z = (sum[2] / CALIBRATION_DATA_AMOUNT) + 1024; /* K3DH(12bit) 1024 +-226 */
-	}
-
-	dev_info(dev, "===============x,y,z fast calibration finished===============");
-
-
-	error = k3dh_store_Calibration_data(dev);
-	if (error) {
-		dev_err(dev,"k3dh_fast_calibration_store failed");
-		return error;
-	}
-	atomic_set(&k3dh->fast_calib_rslt, 1);
-
-	return size;
-
-}
-
-static ssize_t k3dh_eeprom_writing_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	return sprintf(buf, "%d\n", atomic_read(&k3dh->fast_calib_x_rslt));
-}
-
-static ssize_t k3dh_eeprom_writing_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
-{
-	int error = 0;
-	error = k3dh_store_Calibration_data(dev);
-	if (error)
-		return error;
-
-	return count;
-}
-
-static ssize_t k3dh_fast_calibration_x_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	return sprintf(buf, "%d\n", atomic_read(&k3dh->fast_calib_x_rslt));
-}
-
-static ssize_t k3dh_fast_calibration_x_store(struct device *dev,struct device_attribute *attr, const char *buf, size_t size)
-{
-	int error = 0;
-	char axis = 'x';
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	atomic_set(&k3dh->fast_calib_rslt, 0);
-
-	error = k3dh_do_calibration(dev,&axis);
-	if (error) {
-		dev_err(dev,"[k3dh_fast_calibration_x_store] do_calibration failed");
-		return error;
-	}
-	error = k3dh_store_Calibration_data(dev);
-	if (error) {
-		dev_err(dev,"[k3dh_fast_calibration_x_store] store_Calibration_data failed");
-		return error;
-	}
-	atomic_set(&k3dh->fast_calib_x_rslt, 1);
-	return size;
-}
-
-static ssize_t k3dh_fast_calibration_y_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	return sprintf(buf, "%d\n", atomic_read(&k3dh->fast_calib_y_rslt));
-}
-
-static ssize_t k3dh_fast_calibration_y_store(struct device *dev,struct device_attribute *attr, const char *buf, size_t size)
-{
-	int error = 0;
-	char axis = 'y';
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	atomic_set(&k3dh->fast_calib_y_rslt, 0);
-
-	error = k3dh_do_calibration(dev,&axis);
-	if (error) {
-		dev_err(dev,"[k3dh_fast_calibration_y_store] do_calibration failed");
-		return error;
-	}
-	error = k3dh_store_Calibration_data(dev);
-	if (error) {
-		dev_err(dev,"[k3dh_fast_calibration_y_store] store_Calibration_data failed");
-		return error;
-	}
-	atomic_set(&k3dh->fast_calib_y_rslt, 1);
-	return size;
-}
-
-static ssize_t k3dh_fast_calibration_z_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	return sprintf(buf, "%d\n", atomic_read(&k3dh->fast_calib_z_rslt));
-}
-
-static ssize_t k3dh_fast_calibration_z_store(struct device *dev,struct device_attribute *attr, const char *buf, size_t size)
-{
-	int error = 0;
-	char axis = 'z';
-	struct k3dh_acc_data *k3dh = dev_get_drvdata(dev);
-
-	atomic_set(&k3dh->fast_calib_z_rslt, 0);
-
-	error = k3dh_do_calibration(dev,&axis);
-	if (error) {
-		dev_err(dev,"[k3dh_fast_calibration_z_store] do_calibration failed");
-		return error;
-	}
-	error = k3dh_store_Calibration_data(dev);
-	if (error) {
-		dev_err(dev,"[k3dh_fast_calibration_z_store] store_Calibration_data failed");
-		return error;
-	}
-	atomic_set(&k3dh->fast_calib_z_rslt, 1);
-	return size;
-}
-
-static DEVICE_ATTR(enable, S_IRUGO|S_IWUSR |S_IWGRP, k3dh_enable_show, k3dh_enable_store);
-static DEVICE_ATTR(poll_delay, S_IRUGO|S_IWUSR |S_IWGRP, k3dh_delay_show, k3dh_delay_store);
-static DEVICE_ATTR(value, S_IRUGO|S_IWUSR|S_IWGRP, k3dh_sensor_cal_data_show, NULL);
-static DEVICE_ATTR(raw, S_IRUGO|S_IWUSR|S_IWGRP, k3dh_sensor_raw_data_show, NULL);
-static DEVICE_ATTR(opmode, S_IRUGO|S_IWUSR |S_IWGRP, k3dh_opmode_show, k3dh_opmode_store);
-static DEVICE_ATTR(selftest, S_IRUGO|S_IWUSR |S_IWGRP, k3dh_selftest_show, k3dh_selftest_store);
-static DEVICE_ATTR(run_fast_calibration, S_IRUGO|S_IWUSR|S_IWGRP,	k3dh_fast_calibration_show, k3dh_fast_calibration_store);
-static DEVICE_ATTR(run_calibration, S_IRUGO|S_IWUSR|S_IWGRP,	k3dh_eeprom_writing_show, k3dh_eeprom_writing_store);
-static DEVICE_ATTR(fast_calibration_x, S_IRUGO|S_IWUSR|S_IWGRP, k3dh_fast_calibration_x_show, k3dh_fast_calibration_x_store);
-static DEVICE_ATTR(fast_calibration_y, S_IRUGO|S_IWUSR|S_IWGRP, k3dh_fast_calibration_y_show, k3dh_fast_calibration_y_store);
-static DEVICE_ATTR(fast_calibration_z, S_IRUGO|S_IWUSR|S_IWGRP, k3dh_fast_calibration_z_show, k3dh_fast_calibration_z_store);
-
-static struct attribute *acc_sysfs_attrs[] = {
-	&dev_attr_enable.attr,
-	&dev_attr_poll_delay.attr,
-	&dev_attr_value.attr,
-	&dev_attr_raw.attr,
-	&dev_attr_opmode.attr,
-	&dev_attr_selftest.attr,
-#ifdef K3DH_ACCEL_CALIBRATION
-	&dev_attr_run_fast_calibration.attr,
-	&dev_attr_run_calibration.attr,
-	&dev_attr_fast_calibration_x.attr,
-	&dev_attr_fast_calibration_y.attr,
-	&dev_attr_fast_calibration_z.attr,
-#endif
-	NULL
-};
-
-static struct attribute_group acc_attribute_group = {
-	.attrs = acc_sysfs_attrs,
-};
 
 static void k3dh_acc_input_cleanup(struct k3dh_acc_data *acc)
 {
@@ -2802,7 +1604,7 @@ static int k3dh_acc_probe(struct i2c_client *client,
 	 * client structure, even though we cannot fill it completely yet.
 	 */
 
-	acc = devm_kzalloc(&client->dev, sizeof(*acc), GFP_KERNEL);
+	acc = kzalloc(sizeof(struct k3dh_acc_data), GFP_KERNEL);
 	if (acc == NULL) {
 		err = -ENOMEM;
 		dev_err(&client->dev,
@@ -2810,7 +1612,7 @@ static int k3dh_acc_probe(struct i2c_client *client,
 		goto exit_alloc_data_failed;
 	}
 
-	pdata = devm_kzalloc(&client->dev, sizeof(*acc), GFP_KERNEL);
+	pdata = kzalloc(sizeof(struct k3dh_acc_platform_data), GFP_KERNEL);
 
 	if (pdata == NULL) {
 		err = -ENOMEM;
@@ -2841,6 +1643,7 @@ static int k3dh_acc_probe(struct i2c_client *client,
 	pdata->power_on = k3dh_power_on;
 	pdata->power_off = k3dh_power_off;
 
+	err = k3dh_power_on(pdata);
 #ifndef USE_DEFAULT_PINCTRL_NAME
 	err = k3dh_pinctrl_init(acc);
 	if (err)
@@ -2850,7 +1653,7 @@ static int k3dh_acc_probe(struct i2c_client *client,
 		err = k3dh_pinctrl_select(acc, true);
 		if (err < 0) {
 			pr_info("k3dh_pinctrl_select ERROR  = %d\n", err);
-			goto exit_alloc_data_failed;
+			goto exit_kfree_pdata;
 		}
 	}
 #endif
@@ -2864,7 +1667,7 @@ static int k3dh_acc_probe(struct i2c_client *client,
 	if (!acc->irq1_work_queue) {
 		err = -ENOMEM;
 		dev_err(&client->dev, "cannot create work queue1: %d\n", err);
-		goto err_mutexunlock;
+		goto err_mutexunlockfreedata;
 	}
 #ifdef USE_ACC_IRQ2
 	INIT_WORK(&acc->irq2_work, k3dh_acc_irq2_work_func);
@@ -2883,29 +1686,21 @@ static int k3dh_acc_probe(struct i2c_client *client,
 	}
 
 	/* read chip id */
+
 	tempvalue = i2c_smbus_read_word_data(client, WHO_AM_I);
-#ifdef K2HH_ENABLE
-	if ((tempvalue & 0x00FF) == WHOAMI_K2HH_ACC) {
-		pr_info("%s I2C driver registered!\n", K3DH_ACC_DEV_NAME);
-	} else {
-		acc->client = NULL;
-		pr_info("K2HH I2C driver not registered! Device unknown\n");
-		goto err_destoyworkqueue2;
-	}
-#else
 	if ((tempvalue & 0x00FF) == WHOAMI_K3DH_ACC) {
-		pr_info("%s I2C driver registered!\n", K3DH_ACC_DEV_NAME);
+		pr_info("%s I2C driver registered!\n",
+							K3DH_ACC_DEV_NAME);
 	} else {
 		acc->client = NULL;
-		pr_info("K2DH I2C driver not registered! Device unknown\n");
+		pr_info("I2C driver not registered! Device unknown\n");
 		goto err_destoyworkqueue2;
 	}
-#endif
 
 	err = k3dh_acc_validate_pdata(acc);
 	if (err < 0) {
 		dev_err(&client->dev, "failed to validate platform data\n");
-		goto exit_alloc_data_failed;
+		goto exit_kfree_pdata;
 	}
 
 	i2c_set_clientdata(client, acc);
@@ -2958,9 +1753,7 @@ static int k3dh_acc_probe(struct i2c_client *client,
 	acc->resume_state[RES_TT_LIM] = 0x00;
 	acc->resume_state[RES_TT_TLAT] = 0x00;
 	acc->resume_state[RES_TT_TW] = 0x00;
-#ifdef K3DH_ACCEL_CALIBRATION
-	acc->cal_data.bCalLoaded = 0;
-#endif
+
 	err = k3dh_acc_device_power_on(acc);
 	if (err < 0) {
 		dev_err(&client->dev, "power on failed: %d\n", err);
@@ -2975,6 +1768,7 @@ static int k3dh_acc_probe(struct i2c_client *client,
 		goto  err_power_off;
 	}
 
+
 	err = k3dh_acc_update_odr(acc, acc->pdata->poll_interval);
 	if (err < 0) {
 		dev_err(&client->dev, "update_odr failed\n");
@@ -2985,13 +1779,6 @@ static int k3dh_acc_probe(struct i2c_client *client,
 	if (err < 0) {
 		dev_err(&client->dev, "input init failed\n");
 		goto err_power_off;
-	}
-
-	/* create sysfs */
-	err = sysfs_create_group(&acc->input_dev->dev.kobj, &acc_attribute_group);
-	if (err) {
-		dev_err(&client->dev, "Creating attribute group failed\n");
-		goto err_input_cleanup;
 	}
 
 	k3dh_acc_misc_data = acc;
@@ -3053,17 +1840,20 @@ err_power_off:
 err2:
 	if (acc->pdata->exit)
 		acc->pdata->exit();
+exit_kfree_pdata:
+	kfree(acc->pdata);
 err_destoyworkqueue2:
 #ifdef USE_ACC_IRQ2
 	destroy_workqueue(acc->irq2_work_queue);
 err_destoyworkqueue1:
 #endif
 	destroy_workqueue(acc->irq1_work_queue);
-err_mutexunlock:
+err_mutexunlockfreedata:
 	mutex_unlock(&acc->lock);
+	kfree(acc);
 exit_alloc_data_failed:
 exit_check_functionality_failed:
-	dev_err(&client->dev, "%s: Driver Init failed\n", K3DH_ACC_DEV_NAME);
+	dev_err(&acc->client->dev, "%s: Driver Init failed\n", K3DH_ACC_DEV_NAME);
 	return err;
 }
 
@@ -3089,6 +1879,8 @@ static int k3dh_acc_remove(struct i2c_client *client)
 	k3dh_acc_device_power_off(acc);
 	if (acc->pdata->exit)
 		acc->pdata->exit();
+	kfree(acc->pdata);
+	kfree(acc);
 
 	return 0;
 }
@@ -3162,3 +1954,4 @@ module_exit(k3dh_acc_exit);
 MODULE_DESCRIPTION("k3dh accelerometer misc driver");
 MODULE_AUTHOR("STMicroelectronics");
 MODULE_LICENSE("GPL");
+

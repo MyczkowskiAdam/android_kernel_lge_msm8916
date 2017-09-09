@@ -52,11 +52,6 @@ Interrupt Management
 #define K3DH_ACC_I2C_SAD_H	((K3DH_ACC_I2C_SADROOT<<1)|SAD0H)
 #define	K3DH_ACC_DEV_NAME	"K3DH"
 
-//for K2HH
-#define K2HH_ACC_I2C_SADROOT    0x0F
-#define K2HH_ACC_I2C_SAD_L    ((K2HH_ACC_I2C_SADROOT<<1)|SAD0L)
-#define K2HH_ACC_I2C_SAD_H    ((K2HH_ACC_I2C_SADROOT<<1)|SAD0H)
-
 
 #define	K3DH_ACC_IOCTL_BASE 77
 /** The following define the IOCTL command values via the ioctl macros */
@@ -113,27 +108,6 @@ Interrupt Management
 
 
 #ifdef	__KERNEL__
-
-enum sensor_dt_entry_status {
-	DT_REQUIRED,
-	DT_SUGGESTED,
-	DT_OPTIONAL,
-};
-
-enum sensor_dt_entry_type {
-	DT_U32,
-	DT_GPIO,
-	DT_BOOL,
-};
-
-struct sensor_dt_to_pdata_map {
-	const char                  *dt_name;
-	void                        *ptr_data;
-	enum sensor_dt_entry_status status;
-	enum sensor_dt_entry_type   type;
-	int                          default_val;
-};
-
 struct k3dh_acc_platform_data {
 	int poll_interval;
 	int min_interval;

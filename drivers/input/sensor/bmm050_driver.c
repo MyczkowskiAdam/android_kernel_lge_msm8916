@@ -45,8 +45,7 @@
 #include "bst_sensor_common.h"
 
 #include "bmm050.h"
-#include "lge_log.h"
-#define SENSOR_TAG	"[LGE_Magnetometer]"
+#include "bs_log.h"
 
 /* sensor specific */
 #define SENSOR_NAME "bmm050"
@@ -65,8 +64,8 @@
 #define BMM_DEFAULT_REPETITION_Z BMM_VAL_NAME(REGULAR_REPZ)
 #define BMM_DEFAULT_ODR BMM_VAL_NAME(REGULAR_DR)
 /* generic */
-#define BMM_MAX_RETRY_I2C_XFER (10)
-#define BMM_MAX_RETRY_WAKEUP (2)
+#define BMM_MAX_RETRY_I2C_XFER (100)
+#define BMM_MAX_RETRY_WAKEUP (5)
 #define BMM_MAX_RETRY_WAIT_DRDY (100)
 
 #define BMM_DELAY_MIN (1)
@@ -245,7 +244,7 @@ static int bmm_check_chip_id(struct i2c_client *client)
 
 	while (read_count++ < CHECK_CHIP_ID_TIME_MAX) {
 		bmm_i2c_read(client, BMM_REG_NAME(CHIP_ID), &chip_id, 1);
-		SENSOR_LOG("read chip id result: %#x", chip_id);
+		PINFO("read chip id result: %#x", chip_id);
 
 		if ((chip_id & 0xff) != SENSOR_CHIP_ID_BMM) {
 			msleep(1);
@@ -273,7 +272,7 @@ static void bmm_dump_reg(struct i2c_client *client)
 {
 #ifdef DEBUG
 	int i;
-	u8 dbg_buf[64] = "";
+	u8 dbg_buf[64];
 	u8 dbg_buf_str[64 * 3 + 1] = "";
 
 	for (i = 0; i < BYTES_PER_LINE; i++) {
@@ -301,11 +300,10 @@ static int bmm_wakeup(struct i2c_client *client)
 	const u8 value = 0x01;
 	u8 dummy;
 
-	SENSOR_LOG("waking up the chip...");
+	PINFO("waking up the chip...");
 
 	mdelay(BMM_I2C_WRITE_DELAY_TIME);
 	while (try_times) {
-	SENSOR_LOG("debug_core bmm chip...");
 		err = bmm_i2c_write(client,
 				BMM_REG_NAME(POWER_CNTL), (u8 *)&value, 1);
 		mdelay(BMM_I2C_WRITE_DELAY_TIME);
@@ -317,7 +315,7 @@ static int bmm_wakeup(struct i2c_client *client)
 		try_times--;
 	}
 
-	SENSOR_LOG("wake up result: %s, tried times: %d",
+	PINFO("wake up result: %s, tried times: %d",
 			(try_times > 0) ? "succeed" : "fail",
 			BMM_MAX_RETRY_WAKEUP - try_times + 1);
 
@@ -339,7 +337,7 @@ static char bmm_i2c_read(struct i2c_client *client, u8 reg_addr,
 #ifdef BMM_SMBUS
 		dummy = i2c_smbus_read_byte_data(client, reg_addr);
 		if (dummy < 0) {
-			SENSOR_ERR("i2c bus read error");
+			PERR("i2c bus read error");
 			return -1;
 		}
 		*data = (u8)(dummy & 0xff);
@@ -383,7 +381,7 @@ static char bmm_i2c_read(struct i2c_client *client, u8 reg_addr,
 	}
 
 	if (BMM_MAX_RETRY_I2C_XFER <= retry) {
-		SENSOR_ERR("I2C xfer error");
+		PERR("I2C xfer error");
 		return -EIO;
 	}
 
@@ -416,7 +414,7 @@ static char bmm_i2c_write(struct i2c_client *client, u8 reg_addr,
 		reg_addr++;
 		data++;
 		if (dummy < 0) {
-			SENSOR_ERR("error writing i2c bus");
+			PERR("error writing i2c bus");
 			return -1;
 		}
 
@@ -446,7 +444,7 @@ static char bmm_i2c_write(struct i2c_client *client, u8 reg_addr,
 			}
 		}
 		if (BMM_MAX_RETRY_I2C_XFER <= retry) {
-			SENSOR_ERR("I2C xfer error");
+			PERR("I2C xfer error");
 			return -EIO;
 		}
 		reg_addr++;
@@ -563,7 +561,7 @@ static ssize_t bmm_show_op_mode(struct device *dev,
 
 	mutex_unlock(&client_data->mutex_power_mode);
 
-	SENSOR_DBG("op_mode: %d", op_mode);
+	PDEBUG("op_mode: %d", op_mode);
 
 	ret = sprintf(buf, "%d\n", op_mode);
 
@@ -618,13 +616,13 @@ static ssize_t bmm_store_op_mode(struct device *dev,
 
 #ifndef BMM_USE_INPUT_EVENT
 	if (op_mode == BMM_VAL_NAME(SUSPEND_MODE)) {  //power off
-		SENSOR_LOG("Mode:SUSPEND_MODE");
+		printk(KERN_INFO "[Magnetic Field] Mode:SUSPEND_MODE\n");
 		bmm_set_enable(dev, false);
 		return count;
 	}
 
 	if (op_mode == BMM_VAL_NAME(SLEEP_MODE)) {  //power on
-		SENSOR_LOG("Mode:SLEEP_MODE");
+		printk(KERN_INFO "[Magnetic Field] Mode:SLEEP_MODE\n");
 		bmm_set_enable(dev, true);
 		return count;
 	}
@@ -889,18 +887,17 @@ static ssize_t bmm_show_value(struct device *dev,
 		bmm_remap_sensor_data(&value, client_data);
 		client_data->value = value;
 	} else
-		SENSOR_LOG("data not ready");
+		PERR("data not ready");
 
 	count = sprintf(buf, "%d %d %d\n",
 			client_data->value.datax,
 			client_data->value.datay,
 			client_data->value.dataz);
-	/*
-	SENSOR_DBG("%d %d %d",
+	PDEBUG("%d %d %d",
 			client_data->value.datax,
 			client_data->value.datay,
 			client_data->value.dataz);
-	*/
+
 	return count;
 }
 
@@ -929,7 +926,7 @@ static void bmm_mag_enable(struct device *dev)
 
 	err = sensor_platform_hw_power_on(true);
 	if (err < 0)
-		SENSOR_ERR("Enable Fail");
+		printk(KERN_ERR "[Magnetic Field] Power On Fail\n");
 
 	bmm_restore_hw_cfg(client_data->client);
 
@@ -941,7 +938,7 @@ static void bmm_mag_enable(struct device *dev)
 					&client_data->delay)));
 	mutex_unlock(&client_data->mutex_enable);
 #endif
-	SENSOR_FUN();
+	printk(KERN_INFO "[Magnetic Field] Power On\n");
 }
 
 
@@ -960,9 +957,9 @@ static void bmm_mag_disable(struct device *dev)
 #endif
 	err = sensor_platform_hw_power_on(false);
 	if (err < 0)
-		SENSOR_ERR("Disable Fail");
+		printk(KERN_ERR "[Magnetic Field] Power off Fail\n");
 
-	SENSOR_FUN();
+	printk(KERN_INFO "[Magnetic Field] Power off\n");
 }
 
 
@@ -1350,7 +1347,7 @@ static int bmm_restore_hw_cfg(struct i2c_client *client)
 	if (BMM_VAL_NAME(SUSPEND_MODE) == op_mode)
 		return err;
 
-	SENSOR_LOG("app did not close this sensor before suspend");
+	PINFO("app did not close this sensor before suspend");
 
 	mutex_lock(&client_data->mutex_odr);
 	BMM_CALL_API(set_datarate)(client_data->odr);
@@ -1362,7 +1359,7 @@ static int bmm_restore_hw_cfg(struct i2c_client *client)
 			&client_data->rept_xy, 1);
 	mdelay(BMM_I2C_WRITE_DELAY_TIME);
 	err = bmm_i2c_read(client, BMM_REG_NAME(NO_REPETITIONS_XY), &value, 1);
-	SENSOR_LOG("BMM_NO_REPETITIONS_XY: %02x", value);
+	PINFO("BMM_NO_REPETITIONS_XY: %02x", value);
 	mutex_unlock(&client_data->mutex_rept_xy);
 
 	mutex_lock(&client_data->mutex_rept_z);
@@ -1370,20 +1367,20 @@ static int bmm_restore_hw_cfg(struct i2c_client *client)
 			&client_data->rept_z, 1);
 	mdelay(BMM_I2C_WRITE_DELAY_TIME);
 	err = bmm_i2c_read(client, BMM_REG_NAME(NO_REPETITIONS_Z), &value, 1);
-	SENSOR_LOG("BMM_NO_REPETITIONS_Z: %02x", value);
+	PINFO("BMM_NO_REPETITIONS_Z: %02x", value);
 	mutex_unlock(&client_data->mutex_rept_z);
 
 	mutex_lock(&client_data->mutex_op_mode);
 	if (BMM_OP_MODE_UNKNOWN == client_data->op_mode) {
 		bmm_set_forced_mode(client);
-		SENSOR_LOG("set forced mode after hw_restore");
+		PINFO("set forced mode after hw_restore");
 		mdelay(bmm_get_forced_drdy_time(client_data->rept_xy,
 					client_data->rept_z));
 	}
 	mutex_unlock(&client_data->mutex_op_mode);
 
 
-	SENSOR_LOG("register dump after init");
+	PINFO("register dump after init");
 	bmm_dump_reg(client);
 
 	return err;
@@ -1395,7 +1392,6 @@ static int reg_set_optimum_mode_check(struct regulator *reg, int load_uA)
 	return (regulator_count_voltages(reg) > 0) ?
 		regulator_set_optimum_mode(reg, load_uA) : 0;
 }
-
 
 static int sensor_regulator_configure(struct bmm_client_data *data, bool on)
 {
@@ -1460,6 +1456,7 @@ static int sensor_regulator_configure(struct bmm_client_data *data, bool on)
 			}
 		}
 	}
+
 	return 0;
 
 error_set_vtg_i2c:
@@ -1555,8 +1552,8 @@ static int sensor_regulator_power_on(struct bmm_client_data *data, bool on)
 		}
 	}
 
-	usleep_range(20000, 21000);
-	SENSOR_LOG("power on");
+	msleep(130);
+
 	return 0;
 
 error_reg_en_vcc_i2c:
@@ -1586,7 +1583,6 @@ power_off:
 		regulator_disable(pdata->vcc_i2c);
 	}
 	msleep(50);
-	SENSOR_LOG("power off");
 	return 0;
 }
 
@@ -1679,7 +1675,7 @@ static int sensor_parse_dt(struct device *dev, struct bmm_platform_data *pdata)
 			ret = 0;
 			break;
 		default:
-			SENSOR_ERR("%d is an unknown DT entry type",
+			printk(KERN_INFO "%d is an unknown DT entry type\n",
 								itr->type);
 			ret = -EBADE;
 		}
@@ -1692,7 +1688,7 @@ static int sensor_parse_dt(struct device *dev, struct bmm_platform_data *pdata)
 			*((int *)itr->ptr_data) = itr->default_val;
 	
 			if (itr->status < DT_OPTIONAL) {
-				SENSOR_LOG("Missing '%s' DT entry",
+				printk(KERN_INFO "Missing '%s' DT entry\n",
 								itr->dt_name);
 	
 				if (itr->status == DT_REQUIRED && !err)
@@ -1722,10 +1718,9 @@ static int bmm_probe(struct i2c_client *client, const struct i2c_device_id *id)
     struct bmm_platform_data *platform_data;
 #endif
 
-	SENSOR_FUN();
-
+	PINFO("function entrance");
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		SENSOR_ERR("i2c_check_functionality error!");
+		PERR("i2c_check_functionality error!");
 		err = -EIO;
 		goto exit_err_clean;
 	}
@@ -1733,14 +1728,14 @@ static int bmm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	if (NULL == bmm_client) {
 		bmm_client = client;
 	} else {
-		SENSOR_ERR("this driver does not support multiple clients");
+		PERR("this driver does not support multiple clients");
 		err = -EBUSY;
 		return err;
 	}
 
 	p_bmmdata = client_data = devm_kzalloc(&client->dev, sizeof(struct bmm_client_data), GFP_KERNEL);
 	if (NULL == p_bmmdata) {
-		SENSOR_ERR("no memory available");
+		PERR("no memory available");
 		return -ENOMEM;
 	}
 
@@ -1776,20 +1771,20 @@ static int bmm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	client->adapter->retries=15;
 	dummy = bmm_wakeup(client);
 	if (dummy < 0) {
-		SENSOR_ERR("Cannot wake up %s, I2C xfer error", SENSOR_NAME);
+		PERR("Cannot wake up %s, I2C xfer error", SENSOR_NAME);
 		err = -EIO;
 		goto exit_hw_power_off;
 	}
 
-	SENSOR_LOG("register dump after waking up");
+	PINFO("register dump after waking up");
 	bmm_dump_reg(client);
 	/* check chip id */
 	err = bmm_check_chip_id(client);
 	if (!err) {
-		SENSOR_LOG("Bosch Sensortec Device %s detected: %#x",
+		PNOTICE("Bosch Sensortec Device %s detected: %#x",
 				SENSOR_NAME, client->addr);
 	} else {
-		SENSOR_ERR("Bosch Sensortec Device not found, chip id mismatch");
+		PERR("Bosch Sensortec Device not found, chip id mismatch");
 		err = -1;
 		goto exit_hw_power_off;
 	}
@@ -1829,7 +1824,7 @@ static int bmm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	bmm_dump_reg(client);
 
-	SENSOR_DBG("trimming_reg x1: %d y1: %d x2: %d y2: %d xy1: %d xy2: %d",
+	PDEBUG("trimming_reg x1: %d y1: %d x2: %d y2: %d xy1: %d xy2: %d",
 			client_data->device.dig_x1,
 			client_data->device.dig_y1,
 			client_data->device.dig_x2,
@@ -1837,7 +1832,7 @@ static int bmm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 			client_data->device.dig_xy1,
 			client_data->device.dig_xy2);
 
-	SENSOR_DBG("trimming_reg z1: %d z2: %d z3: %d z4: %d xyz1: %d",
+	PDEBUG("trimming_reg z1: %d z2: %d z3: %d z4: %d xyz1: %d",
 			client_data->device.dig_z1,
 			client_data->device.dig_z2,
 			client_data->device.dig_z3,
@@ -1853,7 +1848,7 @@ static int bmm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	err = bmm_set_op_mode(client_data, BMM_VAL_NAME(SUSPEND_MODE));
 	if (err) {
-		SENSOR_ERR("fail to init h/w of %s", SENSOR_NAME);
+		PERR("fail to init h/w of %s", SENSOR_NAME);
 		err = -EIO;
 		goto exit_err_sysfs;
 	}
@@ -1861,14 +1856,14 @@ static int bmm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	/* power off */
 	err = sensor_platform_hw_power_on(false);
 	if (err < 0)
-		SENSOR_ERR("Power off Fail in Probe");
+		printk(KERN_ERR "[Magnetic Field] Power off Fail in Probe\n");
 	else
-		SENSOR_LOG("Power off");
+		printk(KERN_INFO "[Magnetic Field] Power off\n");
 
 
-	SENSOR_LOG("probed successfully");
+	PNOTICE("sensor %s probed successfully", SENSOR_NAME);
 
-	SENSOR_DBG("i2c_client: %p client_data: %p i2c_device: %p input: %p",
+	PDEBUG("i2c_client: %p client_data: %p i2c_device: %p input: %p",
 			client, client_data, &client->dev, client_data->input);
 
 	return 0;
@@ -1880,7 +1875,7 @@ exit_hw_power_off:
 	sensor_platform_hw_power_on(false);
 
 exit_err_clean:
-	SENSOR_ERR("Magnetic Field Probe Fail");
+	printk(KERN_ERR "Magnetic Field Probe Fail\n");
 	return err;
 }
 
@@ -1890,7 +1885,7 @@ static int bmm_suspend(struct i2c_client *client, pm_message_t mesg)
 {
 	struct bmm_client_data *client_data =
 		(struct bmm_client_data *)i2c_get_clientdata(client);
-	SENSOR_FUN();
+
 	client_data->enable_before_suspend = atomic_read(&client_data->enable);
 	bmm_set_enable(&client->dev, false);
 
@@ -1901,7 +1896,7 @@ static int bmm_resume(struct i2c_client *client)
 {
 	struct bmm_client_data *client_data =
 		(struct bmm_client_data *)i2c_get_clientdata(client);
-	SENSOR_FUN();
+
 	if (client_data->enable_before_suspend)
 		bmm_set_enable(&client->dev, true);
 
@@ -1924,7 +1919,7 @@ static int bmm_remove(struct i2c_client *client)
 		mutex_lock(&client_data->mutex_op_mode);
 		if (BMM_VAL_NAME(NORMAL_MODE) == client_data->op_mode) {
 			cancel_delayed_work_sync(&client_data->work);
-			SENSOR_LOG("cancel work");
+			PDEBUG("cancel work");
 		}
 		mutex_unlock(&client_data->mutex_op_mode);
 
@@ -1975,7 +1970,7 @@ static void async_sensor_init(void *data, async_cookie_t cookie)
 {
 	msleep(500);
 
-	SENSOR_LOG("BMM050 driver: initialize.");
+	PINFO("BMM050 driver: initialize.");
 	i2c_add_driver(&bmm_driver);
 	return;
 }
@@ -1988,7 +1983,6 @@ static int __init BMM_init(void)
 
 static void __exit BMM_exit(void)
 {
-	SENSOR_FUN();
 	i2c_del_driver(&bmm_driver);
 }
 
