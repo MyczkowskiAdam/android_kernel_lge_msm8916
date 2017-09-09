@@ -17,16 +17,17 @@
 #define __LGE_ANDROID_USB_H__
 
 struct lge_android_usb_platform_data {
-	__u32 vendor_id;
-	__u32 factory_pid;
-	__u32 iSerialNumber;
-	const char *product_name;
-	const char *manufacturer_name;
-	const char *factory_composition;
+	__u16 vendor_id;
+	__u16 factory_pid;
+	__u8  iSerialNumber;
+	char *product_name;
+	char *manufacturer_name;
+	char *factory_composition;
 	int (*get_factory_cable)(void);
 };
 
-int lgeusb_get_factory_cable(void);
+int lgeusb_get_pif_cable(void);
+
 int lgeusb_get_vendor_id(void);
 int lgeusb_get_factory_pid(void);
 int lgeusb_get_serial_number(void);
@@ -41,4 +42,4 @@ enum lge_android_usb_type {
 	LGEUSB_FACTORY_910K,
 };
 
-#endif /* __LGE_ANDROID_USB_H__ */
+#endif /*                       */

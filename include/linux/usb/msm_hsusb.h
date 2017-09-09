@@ -27,7 +27,7 @@
 #include <linux/hrtimer.h>
 #include <linux/power_supply.h>
 #include <linux/cdev.h>
-#ifdef CONFIG_LGE_USB_G_MSM_OTG_ENABLE
+#ifdef CONFIG_USB_G_LGE_MSM_OTG_ENABLE
 #include <linux/qpnp/qpnp-adc.h>
 #endif
 /*
@@ -197,7 +197,7 @@ enum usb_vdd_value {
 	VDD_VAL_MAX,
 };
 
-#ifdef CONFIG_LGE_USB_G_MSM_OTG_ENABLE
+#ifdef CONFIG_USB_G_LGE_MSM_OTG_ENABLE
 enum msm_otg_id_state {
 	MSM_OTG_ID_GROUND = 0,
 	MSM_OTG_ID_FLOAT,
@@ -293,7 +293,7 @@ enum usb_id_state {
  */
 struct msm_otg_platform_data {
 	int *phy_init_seq;
-#if defined(CONFIG_LGE_USB_G_MSM_OTG_ENABLE) || defined(CONFIG_LGE_USB_TYPE_A)
+#if defined(CONFIG_USB_G_LGE_MSM_OTG_ENABLE) || defined(CONFIG_LGE_USB_TYPE_A)
 	int *phy_init_host_seq;
 #endif
 	int (*vbus_power)(bool on);
@@ -593,7 +593,7 @@ struct msm_otg {
 	bool pm_done;
 	struct qpnp_vadc_chip	*vadc_dev;
 	int ext_id_irq;
-#ifdef CONFIG_LGE_USB_G_MSM_OTG_ENABLE
+#ifdef CONFIG_USB_G_LGE_MSM_OTG_ENABLE
 	struct qpnp_adc_tm_btm_param adc_param;
 	struct delayed_work init_adc_work;
 	enum msm_otg_id_state id_state;
